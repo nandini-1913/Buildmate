@@ -13,6 +13,7 @@ import '../widgets/current_offers_section.dart';
 import '../widgets/featured_products_section.dart';
 import '../widgets/home_app_bar.dart';
 import '../widgets/home_category_card.dart';
+import '../widgets/home_location_bar.dart';
 import '../widgets/home_search_bar.dart';
 import '../widgets/popular_brands_section.dart';
 import '../widgets/popular_products_section.dart';
@@ -141,7 +142,27 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
                       AppSpacing.space4,
+                      AppSpacing.space3,
                       AppSpacing.space4,
+                      0,
+                    ),
+                    child: HomeLocationBar(
+                      label: 'Home',
+                      address: 'B-14/15, Navprena CHS, Sector 8, Chembur',
+                      onTap: () => _open(
+                        AppRoutes.chooseLocation,
+                        arguments: SignupFlowArgs(
+                          mobileNumber: user.phone ?? '',
+                          fullName: user.name,
+                          isLocationUpdate: true,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.space4,
+                      AppSpacing.space3,
                       AppSpacing.space4,
                       0,
                     ),

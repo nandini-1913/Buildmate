@@ -6,14 +6,21 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 
-/// Wireframe accent used across the 4-step login flow.
+/// Brand-blue accent used across the 4-step login flow.
 abstract final class LoginFlowColors {
-  static const Color accent = Color(0xFF90D151);
-  static const Color accentMuted = Color(0xFFD8EEBF);
-  static const Color link = Color(0xFF5FAF2E);
+  static const Color accent = Color(0xFF2F5FE0);
+  static const Color accentDeep = Color(0xFF1A3FB0);
+  static const Color accentMuted = Color(0xFFDCE6FF);
+  static const Color link = Color(0xFF2F5FE0);
   static const Color fieldBorder = Color(0xFFD1D5DB);
   static const Color disabledButton = Color(0xFFE5E7EB);
   static const Color disabledText = Color(0xFF9CA3AF);
+
+  static const List<Color> accentGradient = [Color(0xFF4C7BFF), accent];
+  static const List<Color> backdropGradient = [
+    Color(0xFFEEF3FF),
+    Color(0xFFFFFFFF),
+  ];
 }
 
 class LoginFlowContinueButton extends StatelessWidget {
@@ -33,21 +40,42 @@ class LoginFlowContinueButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final active = enabled && !loading;
-    return SizedBox(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
       width: double.infinity,
       height: 52,
+      decoration: BoxDecoration(
+        borderRadius: AppRadius.mdAll,
+        gradient: active
+            ? const LinearGradient(
+                colors: LoginFlowColors.accentGradient,
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              )
+            : null,
+        color: active ? null : LoginFlowColors.disabledButton,
+        boxShadow: active
+            ? [
+                BoxShadow(
+                  color: LoginFlowColors.accent.withValues(alpha: 0.35),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ]
+            : null,
+      ),
       child: ElevatedButton(
         onPressed: active ? onPressed : null,
         style: ElevatedButton.styleFrom(
           elevation: 0,
-          backgroundColor:
-              active ? LoginFlowColors.accent : LoginFlowColors.disabledButton,
-          foregroundColor: active ? AppColors.onBackground : LoginFlowColors.disabledText,
-          disabledBackgroundColor: LoginFlowColors.disabledButton,
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          foregroundColor: active ? Colors.white : LoginFlowColors.disabledText,
+          disabledBackgroundColor: Colors.transparent,
           disabledForegroundColor: LoginFlowColors.disabledText,
           shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
           textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
               ),
         ),
         child: loading
@@ -92,7 +120,124 @@ class LoginFlowTermsFooter extends StatelessWidget {
   }
 }
 
-class LoginFlowPhoneField extends StatelessWidget {
+/// Segmented Login / Sign Up switch.
+///
+/// Uses a single sliding pill behind the labels (rather than two
+/// independently-animated buttons) so toggling never shows both options
+/// highlighted at once mid-transition.
+class LoginFlowModeToggle extends StatelessWidget {
+  const LoginFlowModeToggle({
+    super.key,
+    required this.isLogin,
+    required this.onChanged,
+  });
+
+  final bool isLogin;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainer,
+        borderRadius: AppRadius.lgAll,
+        border: Border.all(color: LoginFlowColors.fieldBorder),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final segmentWidth = constraints.maxWidth / 2;
+          return Stack(
+            children: [
+              AnimatedAlign(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                alignment: isLogin ? Alignment.centerLeft : Alignment.centerRight,
+                child: Container(
+                  width: segmentWidth,
+                  height: double.infinity,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: LoginFlowColors.accentGradient,
+                    ),
+                    borderRadius: AppRadius.mdAll,
+                    boxShadow: [
+                      BoxShadow(
+                        color: LoginFlowColors.accent.withValues(alpha: 0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: _ModeToggleOption(
+                      label: 'Login',
+                      selected: isLogin,
+                      onTap: () => onChanged(true),
+                    ),
+                  ),
+                  Expanded(
+                    child: _ModeToggleOption(
+                      label: 'Sign Up',
+                      selected: !isLogin,
+                      onTap: () => onChanged(false),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ModeToggleOption extends StatelessWidget {
+  const _ModeToggleOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.mdAll,
+        splashFactory: NoSplash.splashFactory,
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        child: Align(
+          alignment: Alignment.center,
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            style: (theme.textTheme.titleSmall ?? const TextStyle()).copyWith(
+              fontWeight: FontWeight.w700,
+              color: selected ? Colors.white : AppColors.onSurfaceVariant,
+            ),
+            child: Text(label),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class LoginFlowPhoneField extends StatefulWidget {
   const LoginFlowPhoneField({
     super.key,
     required this.controller,
@@ -103,14 +248,49 @@ class LoginFlowPhoneField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
 
   @override
+  State<LoginFlowPhoneField> createState() => _LoginFlowPhoneFieldState();
+}
+
+class _LoginFlowPhoneFieldState extends State<LoginFlowPhoneField> {
+  final _focusNode = FocusNode();
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(() {
+      setState(() => _focused = _focusNode.hasFocus);
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
       height: AppSpacing.inputHeight,
       decoration: BoxDecoration(
         borderRadius: AppRadius.mdAll,
-        border: Border.all(color: LoginFlowColors.fieldBorder, width: 1.5),
+        border: Border.all(
+          color: _focused ? LoginFlowColors.accent : LoginFlowColors.fieldBorder,
+          width: _focused ? 2 : 1.5,
+        ),
         color: AppColors.surface,
+        boxShadow: _focused
+            ? [
+                BoxShadow(
+                  color: LoginFlowColors.accent.withValues(alpha: 0.18),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
       ),
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
       child: Row(
@@ -129,10 +309,11 @@ class LoginFlowPhoneField extends StatelessWidget {
           ),
           Expanded(
             child: TextField(
-              controller: controller,
+              controller: widget.controller,
+              focusNode: _focusNode,
               keyboardType: TextInputType.phone,
               maxLength: 10,
-              onChanged: onChanged,
+              onChanged: widget.onChanged,
               decoration: const InputDecoration(
                 counterText: '',
                 border: InputBorder.none,
@@ -162,11 +343,21 @@ class LoginFlowOutlinedField extends StatelessWidget {
     required this.label,
     required this.controller,
     this.validator,
+    this.hintText = 'Enter your full name',
+    this.keyboardType,
+    this.textCapitalization = TextCapitalization.none,
+    this.prefixIcon,
+    this.textInputAction = TextInputAction.done,
   });
 
   final String label;
   final TextEditingController controller;
   final String? Function(String?)? validator;
+  final String hintText;
+  final TextInputType? keyboardType;
+  final TextCapitalization textCapitalization;
+  final IconData? prefixIcon;
+  final TextInputAction textInputAction;
 
   @override
   Widget build(BuildContext context) {
@@ -181,39 +372,136 @@ class LoginFlowOutlinedField extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.space2),
-        TextFormField(
-          controller: controller,
-          validator: validator,
-          textInputAction: TextInputAction.done,
-          decoration: InputDecoration(
-            hintText: 'Enter your full name',
-            filled: true,
-            fillColor: AppColors.surface,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.space4,
-              vertical: AppSpacing.space3,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: AppRadius.mdAll,
-              borderSide: const BorderSide(
-                color: LoginFlowColors.fieldBorder,
-                width: 1.5,
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.mdAll,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: AppRadius.mdAll,
-              borderSide: const BorderSide(
-                color: LoginFlowColors.accent,
-                width: 1.5,
+            ],
+          ),
+          child: TextFormField(
+            controller: controller,
+            validator: validator,
+            keyboardType: keyboardType,
+            textCapitalization: textCapitalization,
+            textInputAction: textInputAction,
+            decoration: InputDecoration(
+              hintText: hintText,
+              hintStyle: theme.textTheme.bodyLarge?.copyWith(
+                color: LoginFlowColors.disabledText,
               ),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: AppRadius.mdAll,
-              borderSide: const BorderSide(color: AppColors.error),
+              prefixIcon: prefixIcon != null
+                  ? Icon(prefixIcon, color: AppColors.onSurfaceVariant, size: 20)
+                  : null,
+              filled: true,
+              fillColor: AppColors.surface,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.space4,
+                vertical: AppSpacing.space3,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: AppRadius.mdAll,
+                borderSide: const BorderSide(
+                  color: LoginFlowColors.fieldBorder,
+                  width: 1.5,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: AppRadius.mdAll,
+                borderSide: const BorderSide(
+                  color: LoginFlowColors.accent,
+                  width: 2,
+                ),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: AppRadius.mdAll,
+                borderSide: const BorderSide(color: AppColors.error),
+              ),
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Rounded accent icon badge used to soften headers across the auth flow.
+class LoginFlowIconBadge extends StatelessWidget {
+  const LoginFlowIconBadge({
+    super.key,
+    this.icon,
+    this.imageAsset,
+    this.size = 64,
+  }) : assert(icon != null || imageAsset != null);
+
+  final IconData? icon;
+  final String? imageAsset;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            LoginFlowColors.accentMuted,
+            LoginFlowColors.accentMuted.withValues(alpha: 0.4),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: LoginFlowColors.accent.withValues(alpha: 0.28),
+            blurRadius: 28,
+            spreadRadius: 2,
+            offset: const Offset(0, 10),
+          ),
+          const BoxShadow(
+            color: Colors.black12,
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: imageAsset != null
+            ? Container(
+                width: size * 0.78,
+                height: size * 0.78,
+                padding: EdgeInsets.all(size * 0.12),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Image.asset(imageAsset!, fit: BoxFit.contain),
+              )
+            : Container(
+                width: size * 0.66,
+                height: size * 0.66,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: LoginFlowColors.accentGradient,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Icon(icon, color: Colors.white, size: size * 0.34),
+              ),
+      ),
     );
   }
 }
@@ -325,13 +613,13 @@ class LoginFlowBackButton extends StatelessWidget {
         onTap: onPressed,
         borderRadius: AppRadius.mdAll,
         child: Container(
-          width: 44,
-          height: 44,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
             borderRadius: AppRadius.mdAll,
             border: Border.all(color: LoginFlowColors.fieldBorder),
           ),
-          child: const Icon(Icons.arrow_back_rounded, size: 22),
+          child: const Icon(Icons.arrow_back_rounded, size: 16),
         ),
       ),
     );

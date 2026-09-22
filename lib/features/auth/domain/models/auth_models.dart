@@ -18,6 +18,7 @@ class AuthUser {
     this.businessName,
     this.role,
     this.isGuest = false,
+    this.referralCode,
   });
 
   final String id;
@@ -27,6 +28,9 @@ class AuthUser {
   final String? businessName;
   final UserRole? role;
   final bool isGuest;
+
+  /// Referral code the user entered while signing up, if any.
+  final String? referralCode;
 
   factory AuthUser.guest() => const AuthUser(
         id: 'guest',

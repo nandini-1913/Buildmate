@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../features/auth/presentation/screens/choose_location_screen.dart';
 import '../../features/auth/presentation/screens/choose_profession_screen.dart';
 import '../../features/auth/presentation/screens/create_account_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
@@ -15,7 +16,7 @@ import '../../features/catalog/presentation/screens/cart_screen.dart';
 import '../../features/catalog/presentation/screens/category_browse_screen.dart';
 import '../../features/catalog/presentation/screens/material_calculator_screen.dart';
 import '../../features/catalog/presentation/screens/offers_screen.dart';
-import '../../features/catalog/presentation/screens/pipes_tubing_browse_screen.dart';
+import '../../features/catalog/presentation/screens/pipes_fitting_category_screen.dart';
 import '../../features/catalog/presentation/screens/product_detail_screen.dart';
 import '../../features/catalog/presentation/screens/product_list_screen.dart';
 import '../../features/catalog/presentation/screens/upvc_pipe_variant_list_screen.dart';
@@ -41,6 +42,16 @@ abstract final class AppRouter {
       case AppRoutes.createAccount:
         final signupArgs = settings.arguments as SignupFlowArgs?;
         return _slide(CreateAccountScreen(args: signupArgs), settings);
+      case AppRoutes.chooseLocation:
+        final locationArgs = settings.arguments as SignupFlowArgs?;
+        return _slide(
+          ChooseLocationScreen(
+            args: locationArgs ??
+                const SignupFlowArgs(mobileNumber: '', fullName: ''),
+            isLocationUpdate: locationArgs?.isLocationUpdate ?? false,
+          ),
+          settings,
+        );
       case AppRoutes.chooseProfession:
         final professionArgs = settings.arguments as SignupFlowArgs?;
         return _slide(
@@ -91,7 +102,7 @@ abstract final class AppRouter {
         final args = settings.arguments as CategoryBrowseArgs?;
         final categoryId = args?.categoryId ?? 'cat-pipes-tubing';
         if (categoryId == CatalogMockData.pipesTubingCategoryId) {
-          return _slide(const PipesTubingBrowseScreen(), settings);
+          return _slide(const PipesFittingCategoryScreen(), settings);
         }
         return _slide(
           CategoryBrowseScreen(categoryId: categoryId),

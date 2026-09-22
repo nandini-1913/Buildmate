@@ -48,7 +48,7 @@ class _ChooseProfessionScreenState extends State<ChooseProfessionScreen> {
     ),
     _ProfessionOption(
       title: 'Electrician',
-      subtitle: 'wiring, switches & lighting',
+      subtitle: 'Wiring, switches & lighting',
       role: UserRole.builder,
       imageAsset: 'assets/images/professions/electrician.png',
     ),
@@ -79,6 +79,7 @@ class _ChooseProfessionScreenState extends State<ChooseProfessionScreen> {
         fullName: widget.args.fullName,
         mobileNumber: widget.args.mobileNumber,
         role: option.role,
+        referralCode: widget.args.referralCode,
       ),
     );
 
@@ -106,45 +107,82 @@ class _ChooseProfessionScreenState extends State<ChooseProfessionScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Choose your profession',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LoginFlowBackButton(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                  const SizedBox(width: AppSpacing.space4),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Choose your profession',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.space2),
+                        Text(
+                          'Pick what best describes you so we can personalize your experience.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: AppSpacing.space6),
               Expanded(
                 child: ListView.separated(
                   itemCount: _options.length,
-                  separatorBuilder: (_, _) => const Divider(
-                    height: 1,
-                    color: LoginFlowColors.fieldBorder,
-                  ),
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(height: AppSpacing.space3),
                   itemBuilder: (context, index) {
                     final option = _options[index];
+                    final selected = _selectedIndex == index;
                     return InkWell(
+                      borderRadius: BorderRadius.circular(16),
                       onTap: () => setState(() => _selectedIndex = index),
-                      child: Padding(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
                         padding: const EdgeInsets.symmetric(
-                          vertical: AppSpacing.space4,
+                          horizontal: AppSpacing.space4,
+                          vertical: AppSpacing.space3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? LoginFlowColors.accentMuted
+                              : AppColors.surface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: selected
+                                ? LoginFlowColors.accent
+                                : LoginFlowColors.fieldBorder,
+                            width: selected ? 1.5 : 1,
+                          ),
                         ),
                         child: Row(
                           children: [
                             Container(
-                              width: 44,
-                              height: 44,
+                              width: 48,
+                              height: 48,
                               decoration: BoxDecoration(
                                 border: Border.all(
                                   color: LoginFlowColors.fieldBorder,
                                 ),
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(10),
                               ),
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(7),
+                                borderRadius: BorderRadius.circular(9),
                                 child: Image.asset(
                                   option.imageAsset,
-                                  width: 44,
-                                  height: 44,
+                                  width: 48,
+                                  height: 48,
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, _, _) => ColoredBox(
                                     color: AppColors.surfaceContainer,
@@ -178,13 +216,8 @@ class _ChooseProfessionScreenState extends State<ChooseProfessionScreen> {
                                 ],
                               ),
                             ),
-                            Radio<int>(
-                              value: index,
-                              groupValue: _selectedIndex,
-                              activeColor: LoginFlowColors.link,
-                              onChanged: (value) =>
-                                  setState(() => _selectedIndex = value),
-                            ),
+                            const SizedBox(width: AppSpacing.space2),
+                            _SelectionIndicator(selected: selected),
                           ],
                         ),
                       ),
@@ -202,6 +235,34 @@ class _ChooseProfessionScreenState extends State<ChooseProfessionScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SelectionIndicator extends StatelessWidget {
+  const _SelectionIndicator({required this.selected});
+
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected ? LoginFlowColors.accent : Colors.transparent,
+        border: Border.all(
+          color: selected
+              ? LoginFlowColors.accent
+              : LoginFlowColors.fieldBorder,
+          width: 1.5,
+        ),
+      ),
+      child: selected
+          ? const Icon(Icons.check, size: 16, color: Colors.white)
+          : null,
     );
   }
 }

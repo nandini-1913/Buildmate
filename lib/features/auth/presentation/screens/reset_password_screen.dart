@@ -94,7 +94,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   onPressed: () => Navigator.of(context).pop(),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
-                  icon: const Icon(Icons.arrow_back_rounded),
+                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
                 ),
                 const SizedBox(height: AppSpacing.space8),
                 Container(

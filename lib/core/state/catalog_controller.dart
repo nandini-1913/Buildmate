@@ -36,7 +36,8 @@ class CatalogController extends ChangeNotifier {
   List<ProductVariant> get pipeVariants {
     if (_useApi && _apiVariants.isNotEmpty) return _apiVariants;
     return CatalogMockData.variants
-        .where((v) => v.categoryId == CatalogMockData.pipesTubingCategoryId)
+        .where((v) => CatalogMockData.plumbingModuleCategoryIds
+            .contains(v.categoryId))
         .toList();
   }
 
@@ -58,7 +59,14 @@ class CatalogController extends ChangeNotifier {
     if (_useApi && _apiVariants.isNotEmpty) {
       return _brandsFromVariants();
     }
-    return CatalogMockData.brandsForCategory(CatalogMockData.pipesTubingCategoryId);
+    final seen = <String>{};
+    final result = <Brand>[];
+    for (final categoryId in CatalogMockData.plumbingModuleCategoryIds) {
+      for (final brand in CatalogMockData.brandsForCategory(categoryId)) {
+        if (seen.add(brand.id)) result.add(brand);
+      }
+    }
+    return result;
   }
 
   /// Initial load + starts 3-second polling (idempotent).

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../widgets/auth_validators.dart';
 import '../widgets/login_flow_widgets.dart';
 
 /// Step 3 — collect full name before profession selection.
@@ -17,28 +16,31 @@ class CreateAccountScreen extends StatefulWidget {
 }
 
 class _CreateAccountScreenState extends State<CreateAccountScreen> {
-  final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _referralController = TextEditingController();
 
   @override
   void dispose() {
     _nameController.dispose();
+    _referralController.dispose();
     super.dispose();
   }
 
   void _continue() {
-    if (!_formKey.currentState!.validate()) return;
     final mobile = widget.args?.mobileNumber;
     if (mobile == null || mobile.isEmpty) {
       Navigator.of(context).pop();
       return;
     }
 
+    final referralCode = _referralController.text.trim();
+
     Navigator.of(context).pushNamed(
-      AppRoutes.chooseProfession,
+      AppRoutes.chooseLocation,
       arguments: SignupFlowArgs(
         mobileNumber: mobile,
         fullName: _nameController.text.trim(),
+        referralCode: referralCode.isEmpty ? null : referralCode,
       ),
     );
   }
@@ -49,37 +51,66 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.space6,
-            AppSpacing.space6,
-            AppSpacing.space6,
-            AppSpacing.space4,
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: LoginFlowColors.backdropGradient,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
-          child: Form(
-            key: _formKey,
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.space6,
+              AppSpacing.space6,
+              AppSpacing.space6,
+              AppSpacing.space4,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                LoginFlowBackButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+                const SizedBox(height: AppSpacing.space4),
+                const Center(
+                  child: LoginFlowIconBadge(
+                    icon: Icons.person_outline_rounded,
+                    size: 84,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.space5),
                 Text(
                   'Create Your Account',
+                  textAlign: TextAlign.center,
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.space2),
                 Text(
-                  'Please provide your details to continue',
+                  'Just a couple of details to get you started',
+                  textAlign: TextAlign.center,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: AppColors.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.space8),
                 LoginFlowOutlinedField(
-                  label: 'Full Name *',
+                  label: 'Full Name',
                   controller: _nameController,
-                  validator: AuthValidators.fullName,
+                  hintText: 'Enter your full name',
+                  textCapitalization: TextCapitalization.words,
+                  prefixIcon: Icons.person_outline_rounded,
+                ),
+                const SizedBox(height: AppSpacing.space5),
+                LoginFlowOutlinedField(
+                  label: 'Referral Code (Optional)',
+                  controller: _referralController,
+                  hintText: 'Enter referral code, if you have one',
+                  textCapitalization: TextCapitalization.characters,
+                  prefixIcon: Icons.card_giftcard_rounded,
                 ),
                 const Spacer(),
                 LoginFlowContinueButton(

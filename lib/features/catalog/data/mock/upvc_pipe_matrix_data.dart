@@ -106,13 +106,26 @@ abstract final class UpvcPipeMatrixData {
     return mmA.compareTo(mmB);
   }
 
+  /// Scales a base MRP table by [factor], used to derive placeholder
+  /// pricing for pressure-class ("kg/cm2") type variants.
+  static Map<int, double> _scaleMrp(Map<int, double> base, double factor) =>
+      base.map((mm, mrp) => MapEntry(mm, double.parse((mrp * factor).toStringAsFixed(2))));
+
   static List<ProductVariant> buildVariants() {
     final variants = <ProductVariant>[];
     final rows = [
       ('brand-astral', 'Astral', 'Sch 40', _astralSch40Mrp, 'AS'),
       ('brand-astral', 'Astral', 'Sch 80', _astralSch80Mrp, 'AS'),
+      ('brand-astral', 'Astral', '4 kg', _scaleMrp(_astralSch40Mrp, 0.85), 'AS'),
+      ('brand-astral', 'Astral', '6 kg', _astralSch40Mrp, 'AS'),
+      ('brand-astral', 'Astral', '8 kg', _scaleMrp(_astralSch40Mrp, 1.15), 'AS'),
+      ('brand-astral', 'Astral', '10 kg', _astralSch80Mrp, 'AS'),
       ('brand-king', 'King', 'Sch 40', _kingSch40Mrp, 'KG'),
       ('brand-king', 'King', 'Sch 80', _kingSch80Mrp, 'KG'),
+      ('brand-king', 'King', '4 kg', _scaleMrp(_kingSch40Mrp, 0.85), 'KG'),
+      ('brand-king', 'King', '6 kg', _kingSch40Mrp, 'KG'),
+      ('brand-king', 'King', '8 kg', _scaleMrp(_kingSch40Mrp, 1.15), 'KG'),
+      ('brand-king', 'King', '10 kg', _kingSch80Mrp, 'KG'),
     ];
 
     for (final row in rows) {
@@ -126,16 +139,19 @@ abstract final class UpvcPipeMatrixData {
         final mrp = mrpMap[size.mm];
         if (mrp == null) continue;
 
-        final scheduleNum = schedule.contains('80') ? '80' : '40';
+        final isSchedule = schedule.toLowerCase().startsWith('sch');
+        final typeDigits =
+            RegExp(r'\d+').firstMatch(schedule)?.group(0) ?? '0';
+        final typeToken = '${isSchedule ? 'U' : 'C'}$typeDigits';
         final productCode =
-            'U$scheduleNum${size.mm.toString().padLeft(3, '0')}$brandCode';
+            '$typeToken${size.mm.toString().padLeft(3, '0')}$brandCode';
         final productName =
             '${productCode}_UPVC Pipe, $schedule, ${size.label}, $_length Pipe $brandName';
         final selling = mrp - (mrp * _discountRate);
 
         variants.add(
           ProductVariant(
-            id: 'upvc-matrix__${brandId}__${scheduleNum}__${size.mm}',
+            id: 'upvc-matrix__${brandId}__${typeToken}__${size.mm}',
             productId: 'upvc-pipe-unified',
             productName: productName,
             sku: productCode,

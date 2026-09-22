@@ -32,11 +32,19 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   final GlobalKey<NavigatorState> _shellNavKey = GlobalKey<NavigatorState>();
   late final ValueNotifier<int> _tabIndex;
+  late final _ShellNavObserver _navObserver;
+  bool _hasPushedRoute = false;
 
   @override
   void initState() {
     super.initState();
     _tabIndex = ValueNotifier<int>(widget.initialIndex);
+    _navObserver = _ShellNavObserver(
+      onDepthChanged: (hasPushedRoute) {
+        if (!mounted || hasPushedRoute == _hasPushedRoute) return;
+        setState(() => _hasPushedRoute = hasPushedRoute);
+      },
+    );
   }
 
   @override
@@ -79,6 +87,7 @@ class _MainShellState extends State<MainShell> {
       body: Navigator(
         key: _shellNavKey,
         initialRoute: '/',
+        observers: [_navObserver],
         onGenerateRoute: (settings) {
           if (settings.name == '/' ||
               settings.name == AppRoutes.homePlaceholder ||
@@ -104,7 +113,7 @@ class _MainShellState extends State<MainShell> {
           return AppRouter.onGenerateRoute(settings);
         },
       ),
-      floatingActionButton: index == 0
+      floatingActionButton: index == 0 && !_hasPushedRoute
           ? FloatingActionButton(
               onPressed: () => _openInShell(AppRoutes.aiAssistant),
               backgroundColor: AppColors.primary,
@@ -292,5 +301,35 @@ class _QuotationTab extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Tracks whether the shell's nested [Navigator] has anything pushed on top
+/// of its root tab route, so chrome owned by [MainShell] (like the AI
+/// assistant FAB) can hide itself while a full-screen route is showing.
+class _ShellNavObserver extends NavigatorObserver {
+  _ShellNavObserver({required this.onDepthChanged});
+
+  final ValueChanged<bool> onDepthChanged;
+  int _depth = 0;
+
+  void _report() => onDepthChanged(_depth > 0);
+
+  @override
+  void didPush(Route route, Route? previousRoute) {
+    if (previousRoute != null) _depth++;
+    _report();
+  }
+
+  @override
+  void didPop(Route route, Route? previousRoute) {
+    if (previousRoute != null) _depth = (_depth - 1).clamp(0, 1 << 30);
+    _report();
+  }
+
+  @override
+  void didRemove(Route route, Route? previousRoute) {
+    if (previousRoute != null) _depth = (_depth - 1).clamp(0, 1 << 30);
+    _report();
   }
 }

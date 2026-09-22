@@ -13,6 +13,7 @@ import 'core/state/session_controller.dart';
 import 'core/state/wishlist_controller.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
+import 'features/rewards/data/in_memory_reward_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,6 +59,7 @@ class ShivaniConstructionsApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (context) => RewardController(
             quotationController: context.read<QuotationController>(),
+            repository: InMemoryRewardRepository.withDemoSeed(),
           ),
         ),
       ],

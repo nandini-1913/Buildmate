@@ -3,6 +3,7 @@ abstract final class AppRoutes {
   static const String onboarding = '/onboarding';
   static const String login = '/login';
   static const String createAccount = '/create-account';
+  static const String chooseLocation = '/choose-location';
   static const String chooseProfession = '/choose-profession';
   static const String otpVerification = '/otp-verification';
   static const String forgotPassword = '/forgot-password';
@@ -63,10 +64,19 @@ class SignupFlowArgs {
   const SignupFlowArgs({
     required this.mobileNumber,
     required this.fullName,
+    this.referralCode,
+    this.isLocationUpdate = false,
   });
 
   final String mobileNumber;
   final String fullName;
+
+  /// Optional referral code entered during signup.
+  final String? referralCode;
+
+  /// True when [AppRoutes.chooseLocation] is opened from Home to change the
+  /// saved address rather than as part of the signup flow.
+  final bool isLocationUpdate;
 }
 
 enum OtpPurpose {

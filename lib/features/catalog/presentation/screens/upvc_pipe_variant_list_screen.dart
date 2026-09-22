@@ -45,7 +45,7 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
   String? _lastCatalogFingerprint;
 
   PipeFilterTab? _openFilter;
-  PipeModuleSort _sort = PipeModuleSort.discount;
+  PipeModuleSort _sort = PipeModuleSort.all;
   String? _selectedBrand;
 
   final PageController _pageController = PageController();
@@ -61,13 +61,10 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
     if (catalog.isUsingApi && catalog.pipeVariants.isNotEmpty) {
       return catalog.pipeVariants;
     }
-    return CatalogMockData.variants.where((variant) {
-      final id = variant.categoryId;
-      return id == CatalogMockData.pipesTubingCategoryId ||
-          id == 'cat-fittings' ||
-          id == 'cat-sanitary-wares' ||
-          id == 'cat-cp-fittings';
-    }).toList();
+    return CatalogMockData.variants
+        .where((variant) => CatalogMockData.plumbingModuleCategoryIds
+            .contains(variant.categoryId))
+        .toList();
   }
 
   bool _usesUpvcMatrix(CatalogController catalog) {
@@ -87,23 +84,53 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
     );
   }
 
+  bool _usesCpvcMatrix(CatalogController catalog) {
+    final isCpvcScope =
+        widget.subCategoryId == CatalogMockData.cpvcPipesSubCategoryId;
+    if (!isCpvcScope) return false;
+    if (!catalog.isUsingApi) return true;
+
+    final apiCpvc = catalog.pipeVariants.where(
+      (v) => v.subCategoryId == CatalogMockData.cpvcPipesSubCategoryId,
+    );
+    return apiCpvc.isEmpty;
+  }
+
+  bool _usesPvcSwrMatrix(CatalogController catalog) {
+    final isPvcSwrScope =
+        widget.subCategoryId == CatalogMockData.pvcSwrPipesSubCategoryId;
+    if (!isPvcSwrScope) return false;
+    if (!catalog.isUsingApi) return true;
+
+    final apiPvcSwr = catalog.pipeVariants.where(
+      (v) => v.subCategoryId == CatalogMockData.pvcSwrPipesSubCategoryId,
+    );
+    return apiPvcSwr.isEmpty;
+  }
+
   List<ProductVariant> _all(CatalogController catalog) {
     if (_usesUpvcMatrix(catalog)) {
       return CatalogMockData.upvcPipeMatrixVariants;
     }
+    if (_usesCpvcMatrix(catalog)) {
+      return CatalogMockData.cpvcPipeMatrixVariants;
+    }
+    if (_usesPvcSwrMatrix(catalog)) {
+      return CatalogMockData.pvcSwrPipeMatrixVariants;
+    }
 
     final categoryIds = widget.categoryIds;
-    var list = categoryIds != null
+    return categoryIds != null
         ? _moduleVariants(catalog)
             .where((v) => categoryIds.contains(v.categoryId))
             .toList()
         : catalog.pipeVariantsForSubCategory(widget.subCategoryId);
+  }
 
+  List<ProductVariant> _variantsForTappedProduct(List<ProductVariant> all) {
     final productId = widget.productId?.trim();
-    if (productId != null && productId.isNotEmpty) {
-      list = list.where((v) => v.productId == productId).toList();
-    }
-    return list;
+    if (productId == null || productId.isEmpty) return const [];
+    return all.where((v) => v.productId == productId).toList();
   }
 
   List<ProductVariant> _filteredPool(List<ProductVariant> all) {
@@ -119,6 +146,8 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
     }
 
     switch (_sort) {
+      case PipeModuleSort.all:
+        break;
       case PipeModuleSort.discount:
         list.sort(
           (a, b) => (b.effectiveDiscountRate ?? 0)
@@ -168,7 +197,10 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_filtersInitialized && _initializedForSubCategory == key) return;
-      final initial = _defaultVariant(all) ?? _cheapestVariant(all);
+      final tapped = _variantsForTappedProduct(all);
+      final initial = _cheapestVariant(tapped) ??
+          _defaultVariant(all) ??
+          _cheapestVariant(all);
       if (initial == null) return;
       setState(() {
         _brandId = _nonEmpty(initial.brandId);
@@ -487,8 +519,16 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
     context.read<CartController>().addVariant(variant);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${variant.displayName} added to cart'),
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle_rounded, color: AppColors.onPrimary, size: 20),
+            const SizedBox(width: AppSpacing.space2),
+            Expanded(child: Text('${variant.displayName} added to cart')),
+          ],
+        ),
+        backgroundColor: AppColors.primary,
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
       ),
     );
   }
@@ -574,16 +614,28 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
                       if (catalog.isLoading && all.isEmpty)
                         const Padding(
                           padding: EdgeInsets.only(top: AppSpacing.space3),
-                          child: LinearProgressIndicator(),
+                          child: LinearProgressIndicator(color: AppColors.primary),
                         ),
-                      if (all.isEmpty)
+                      if (!catalog.isLoading && all.isEmpty)
                         Padding(
-                          padding: const EdgeInsets.only(top: AppSpacing.space3),
-                          child: Text(
-                            'No products available.',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.outline,
-                            ),
+                          padding: const EdgeInsets.only(top: AppSpacing.space4),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.info_outline_rounded,
+                                size: 18,
+                                color: AppColors.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: AppSpacing.space2),
+                              Expanded(
+                                child: Text(
+                                  'No products available.',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                     ],
@@ -643,7 +695,7 @@ class _PipeConfiguratorHeader extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFFE8F5D6),
+            Color(0xFFEAF0FF),
             AppColors.surface,
           ],
         ),
@@ -669,7 +721,7 @@ class _PipeConfiguratorHeader extends StatelessWidget {
                   color: AppColors.surface,
                   shape: RoundedRectangleBorder(
                     borderRadius: AppRadius.mdAll,
-                    side: const BorderSide(color: Color(0xFFD1D5DB)),
+                    side: const BorderSide(color: AppColors.outlineVariant),
                   ),
                   child: InkWell(
                     onTap: onSearch,
@@ -725,15 +777,15 @@ class _HeaderIconButton extends StatelessWidget {
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: AppRadius.mdAll,
-        side: const BorderSide(color: Color(0xFFD1D5DB)),
+        side: const BorderSide(color: AppColors.outlineVariant),
       ),
       child: InkWell(
         onTap: onPressed,
         borderRadius: AppRadius.mdAll,
         child: SizedBox(
-          width: 40,
-          height: 40,
-          child: Icon(icon, size: 22),
+          width: 44,
+          height: 44,
+          child: Icon(icon, size: 22, color: AppColors.onBackground),
         ),
       ),
     );
@@ -753,8 +805,6 @@ class _ProductImageCarousel extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onPageChanged;
 
-  static const _accentGreen = Color(0xFF90D151);
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -764,7 +814,14 @@ class _ProductImageCarousel extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: AppRadius.lgAll,
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            border: Border.all(color: AppColors.divider),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.shadow,
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           clipBehavior: Clip.antiAlias,
           child: PageView.builder(
@@ -786,22 +843,27 @@ class _ProductImageCarousel extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(height: AppSpacing.space2),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            for (var i = 0; i < slides.length; i++)
-              Container(
-                width: 8,
-                height: 8,
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: i == currentIndex ? _accentGreen : const Color(0xFFD1D5DB),
+        if (slides.length > 1) ...[
+          const SizedBox(height: AppSpacing.space2),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < slides.length; i++)
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: i == currentIndex ? 18 : 8,
+                  height: 8,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    color: i == currentIndex
+                        ? AppColors.primary
+                        : AppColors.outlineVariant,
+                  ),
                 ),
-              ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -822,8 +884,6 @@ class _AddToCartCard extends StatelessWidget {
   final bool enabled;
   final VoidCallback? onAddToCart;
 
-  static const _accentGreenLight = Color(0xFFD8EEBF);
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -833,7 +893,14 @@ class _AddToCartCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: AppRadius.lgAll,
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadow,
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -845,6 +912,7 @@ class _AddToCartCard extends StatelessWidget {
                   'Selected Product Size',
                   style: theme.textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: AppColors.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.space1),
@@ -853,6 +921,7 @@ class _AddToCartCard extends StatelessWidget {
                     text: TextSpan(
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
+                        color: AppColors.onBackground,
                       ),
                       children: [
                         const TextSpan(text: '₹'),
@@ -875,9 +944,10 @@ class _AddToCartCard extends StatelessWidget {
                     ),
                   ),
                 Text(
-                  selectedSizeLabel,
+                  enabled ? selectedSizeLabel : 'Out of stock',
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: AppColors.onSurfaceVariant,
+                    color: enabled ? AppColors.onSurfaceVariant : AppColors.error,
+                    fontWeight: enabled ? FontWeight.w400 : FontWeight.w700,
                   ),
                 ),
               ],
@@ -885,7 +955,7 @@ class _AddToCartCard extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.space2),
           Material(
-            color: _accentGreenLight,
+            color: enabled ? AppColors.accentGreenContainer : AppColors.disabledContainer,
             borderRadius: AppRadius.lgAll,
             child: InkWell(
               onTap: enabled ? onAddToCart : null,
@@ -895,11 +965,27 @@ class _AddToCartCard extends StatelessWidget {
                   horizontal: AppSpacing.space4,
                   vertical: AppSpacing.space3,
                 ),
-                child: Text(
-                  'Add to Cart',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.add_shopping_cart_rounded,
+                      size: 18,
+                      color: enabled
+                          ? AppColors.onAccentGreenContainer
+                          : AppColors.disabled,
+                    ),
+                    const SizedBox(width: AppSpacing.space1),
+                    Text(
+                      'Add to Cart',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: enabled
+                            ? AppColors.onAccentGreenContainer
+                            : AppColors.disabled,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -926,26 +1012,41 @@ class _ProductOptionDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final textStyle = theme.textTheme.titleMedium?.copyWith(
-      fontWeight: FontWeight.w800,
-    );
     final selected = value != null && options.contains(value) ? value : null;
+    final enabled = onChanged != null;
+    final textStyle = theme.textTheme.titleSmall?.copyWith(
+      fontWeight: FontWeight.w700,
+      color: enabled ? AppColors.onBackground : AppColors.disabled,
+    );
 
-    return DropdownButtonHideUnderline(
-      child: DropdownButton<String>(
-        isExpanded: true,
-        value: selected,
-        hint: Text(hint, style: textStyle),
-        icon: const Icon(Icons.keyboard_arrow_down_rounded),
-        style: textStyle,
-        items: [
-          for (final option in options)
-            DropdownMenuItem<String>(
-              value: option,
-              child: Text(option),
-            ),
-        ],
-        onChanged: onChanged,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space3),
+      decoration: BoxDecoration(
+        color: enabled ? AppColors.surface : AppColors.disabledContainer,
+        borderRadius: AppRadius.mdAll,
+        border: Border.all(
+          color: enabled ? AppColors.outlineVariant : AppColors.divider,
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: selected,
+          hint: Text(hint, style: textStyle),
+          icon: Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: enabled ? AppColors.onSurfaceVariant : AppColors.disabled,
+          ),
+          style: textStyle,
+          items: [
+            for (final option in options)
+              DropdownMenuItem<String>(
+                value: option,
+                child: Text(option),
+              ),
+          ],
+          onChanged: onChanged,
+        ),
       ),
     );
   }

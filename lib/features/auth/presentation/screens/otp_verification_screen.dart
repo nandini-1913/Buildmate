@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/state/session_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../services/auth_service.dart';
@@ -100,8 +102,17 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           ),
         );
         return;
-      case OtpPurpose.registration:
       case OtpPurpose.mobileLogin:
+        // Existing user — verified mock account already carries a profile,
+        // so skip straight to the home shell instead of the signup steps.
+        await context.read<SessionController>().setFromAuth(result.user!);
+        if (!mounted) return;
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AppRoutes.homePlaceholder,
+          (_) => false,
+        );
+        return;
+      case OtpPurpose.registration:
         final mobile = widget.args.mobileNumber ??
             _contact.replaceAll(RegExp(r'\D'), '').replaceFirst(RegExp(r'^91'), '');
         Navigator.of(context).pushReplacementNamed(

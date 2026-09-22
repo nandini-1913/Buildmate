@@ -8,6 +8,7 @@ import '../../domain/models/catalog_models.dart';
 enum PipeFilterTab { sort, size, brand }
 
 enum PipeModuleSort {
+  all,
   discount,
   priceLowHigh,
   whatsNew,
@@ -63,6 +64,7 @@ class PipesFilterChrome extends StatelessWidget {
     required this.onSortChanged,
     required this.onSizeChanged,
     required this.onBrandChanged,
+    this.showBrandTab = true,
   });
 
   final PipeFilterTab? activeTab;
@@ -74,6 +76,7 @@ class PipesFilterChrome extends StatelessWidget {
   final ValueChanged<PipeModuleSort> onSortChanged;
   final ValueChanged<String?> onSizeChanged;
   final ValueChanged<String?> onBrandChanged;
+  final bool showBrandTab;
 
   @override
   Widget build(BuildContext context) {
@@ -83,11 +86,6 @@ class PipesFilterChrome extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
             if (activeTab != null) ...[
-              const SizedBox(height: AppSpacing.space2),
-              Center(
-                child: _CloseButton(onPressed: onClose),
-              ),
-              const SizedBox(height: AppSpacing.space2),
               _FilterSheet(
                 tab: activeTab!,
                 sort: sort,
@@ -96,40 +94,30 @@ class PipesFilterChrome extends StatelessWidget {
                 onSortChanged: onSortChanged,
                 onSizeChanged: onSizeChanged,
                 onBrandChanged: onBrandChanged,
+                onClose: onClose,
               ),
+              const SizedBox(height: AppSpacing.space2),
             ],
-          _FilterTabBar(
-            activeTab: activeTab,
-            onSort: () => onTabSelected(PipeFilterTab.sort),
-            onSize: () => onTabSelected(PipeFilterTab.size),
-            onBrand: () => onTabSelected(PipeFilterTab.brand),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.shadow,
+                  blurRadius: 12,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: _FilterTabBar(
+              activeTab: activeTab,
+              onSort: () => onTabSelected(PipeFilterTab.sort),
+              onSize: () => onTabSelected(PipeFilterTab.size),
+              onBrand: () => onTabSelected(PipeFilterTab.brand),
+              showBrandTab: showBrandTab,
+            ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _CloseButton extends StatelessWidget {
-  const _CloseButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.surface,
-      shape: const CircleBorder(
-        side: BorderSide(color: Color(0xFFD1D5DB)),
-      ),
-      child: InkWell(
-        onTap: onPressed,
-        customBorder: const CircleBorder(),
-        child: const SizedBox(
-          width: 36,
-          height: 36,
-          child: Icon(Icons.close_rounded, size: 20),
-        ),
       ),
     );
   }
@@ -144,6 +132,7 @@ class _FilterSheet extends StatelessWidget {
     required this.onSortChanged,
     required this.onSizeChanged,
     required this.onBrandChanged,
+    required this.onClose,
   });
 
   final PipeFilterTab tab;
@@ -153,18 +142,25 @@ class _FilterSheet extends StatelessWidget {
   final ValueChanged<PipeModuleSort> onSortChanged;
   final ValueChanged<String?> onSizeChanged;
   final ValueChanged<String?> onBrandChanged;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final maxSheetHeight = MediaQuery.sizeOf(context).height * 0.38;
+    final maxSheetHeight = MediaQuery.sizeOf(context).height * 0.42;
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.space2),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadow,
+            blurRadius: 20,
+            offset: const Offset(0, -4),
+          ),
+        ],
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxSheetHeight),
@@ -172,18 +168,48 @@ class _FilterSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
+            const SizedBox(height: AppSpacing.space2),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.outlineVariant,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.space5,
-                AppSpacing.space5,
-                AppSpacing.space5,
+                AppSpacing.space4,
+                AppSpacing.space3,
                 AppSpacing.space2,
               ),
-              child: Text(
-                _title,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _title,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Material(
+                    color: AppColors.surfaceContainer,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      onTap: onClose,
+                      customBorder: const CircleBorder(),
+                      child: const SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: Icon(Icons.close_rounded, size: 18),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             Flexible(
@@ -233,6 +259,7 @@ class _SortOptions extends StatelessWidget {
   final ValueChanged<PipeModuleSort> onChanged;
 
   static const _options = [
+    (PipeModuleSort.all, 'All'),
     (PipeModuleSort.discount, 'Discount'),
     (PipeModuleSort.priceLowHigh, 'Price (lowest first)'),
     (PipeModuleSort.whatsNew, 'What’s New'),
@@ -343,49 +370,52 @@ class _FilterOptionTile extends StatelessWidget {
   final bool useSquareIndicator;
   final bool compact;
 
-  static const _accentGreen = Color(0xFF90D151);
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: AppSpacing.space5,
-          vertical: compact ? AppSpacing.space2 : AppSpacing.space3,
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 22,
-              height: 22,
-              decoration: BoxDecoration(
-                color: selected ? _accentGreen : Colors.transparent,
-                shape: useSquareIndicator ? BoxShape.rectangle : BoxShape.circle,
-                borderRadius:
-                    useSquareIndicator ? BorderRadius.circular(4) : null,
-                border: Border.all(
-                  color: selected ? _accentGreen : const Color(0xFFD1D5DB),
-                  width: 1.5,
+    return Material(
+      color: selected ? AppColors.primaryContainer.withValues(alpha: 0.35) : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: AppSpacing.space5,
+            vertical: compact ? AppSpacing.space2 : AppSpacing.space3,
+          ),
+          child: Row(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: selected ? AppColors.primary : Colors.transparent,
+                  shape: useSquareIndicator ? BoxShape.rectangle : BoxShape.circle,
+                  borderRadius:
+                      useSquareIndicator ? BorderRadius.circular(6) : null,
+                  border: Border.all(
+                    color: selected ? AppColors.primary : AppColors.outlineVariant,
+                    width: 1.5,
+                  ),
+                ),
+                child: selected
+                    ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                    : null,
+              ),
+              const SizedBox(width: AppSpacing.space3),
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    fontSize: compact ? 15 : null,
+                    color: selected ? AppColors.onBackground : AppColors.onSurface,
+                  ),
                 ),
               ),
-              child: selected
-                  ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
-                  : null,
-            ),
-            const SizedBox(width: AppSpacing.space3),
-            Expanded(
-              child: Text(
-                label,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w500,
-                  fontSize: compact ? 15 : null,
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -398,12 +428,14 @@ class _FilterTabBar extends StatelessWidget {
     required this.onSort,
     required this.onSize,
     required this.onBrand,
+    this.showBrandTab = true,
   });
 
   final PipeFilterTab? activeTab;
   final VoidCallback onSort;
   final VoidCallback onSize;
   final VoidCallback onBrand;
+  final bool showBrandTab;
 
   @override
   Widget build(BuildContext context) {
@@ -436,15 +468,16 @@ class _FilterTabBar extends StatelessWidget {
               textStyle: theme.textTheme.labelLarge,
             ),
           ),
-          Expanded(
-            child: _FilterTab(
-              icon: Icons.sell_outlined,
-              label: 'Brand',
-              selected: activeTab == PipeFilterTab.brand,
-              onTap: onBrand,
-              textStyle: theme.textTheme.labelLarge,
+          if (showBrandTab)
+            Expanded(
+              child: _FilterTab(
+                icon: Icons.sell_outlined,
+                label: 'Brand',
+                selected: activeTab == PipeFilterTab.brand,
+                onTap: onBrand,
+                textStyle: theme.textTheme.labelLarge,
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -468,10 +501,12 @@ class _FilterTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = selected ? AppColors.primary : AppColors.onSurfaceVariant;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space1),
       child: Material(
-        color: Colors.transparent,
+        color: selected ? AppColors.primaryContainer.withValues(alpha: 0.4) : Colors.transparent,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onTap,
@@ -484,12 +519,15 @@ class _FilterTab extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 22, color: AppColors.onBackground),
+                Icon(icon, size: 22, color: color),
                 const SizedBox(height: AppSpacing.space1),
                 Text(
                   label,
                   textAlign: TextAlign.center,
-                  style: textStyle?.copyWith(fontWeight: FontWeight.w600),
+                  style: textStyle?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
                 ),
               ],
             ),

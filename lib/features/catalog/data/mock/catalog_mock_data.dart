@@ -4,7 +4,9 @@ import '../../../../core/routes/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/models/catalog_models.dart';
 import 'brand_seed_data.dart';
+import 'cpvc_pipe_matrix_data.dart';
 import 'plumbing_catalog_rows.dart';
+import 'pvc_swr_pipe_matrix_data.dart';
 import 'upvc_pipe_matrix_data.dart';
 
 /// Local catalog built from Excel seed rows + brand dataset.
@@ -14,7 +16,23 @@ abstract final class CatalogMockData {
 
   /// Generated sub-category id for Pipes & Tubing → UPVC (`_subId` slug).
   static const String upvcPipesSubCategoryId = 'cat-pipes-tubing__upvc';
+  /// Generated sub-category id for Pipes & Tubing → CPVC (`_subId` slug).
+  static const String cpvcPipesSubCategoryId = 'cat-pipes-tubing__cpvc';
+  /// Generated sub-category id for Pipes & Tubing → PVC SWR (`_subId` slug).
+  static const String pvcSwrPipesSubCategoryId = 'cat-pipes-tubing__pvc-swr';
   static const String pipesTubingCategoryId = 'cat-pipes-tubing';
+
+  /// All catalog category ids covered by the pipe/product configurator screen —
+  /// used so its size/type dropdowns populate for every category, not just pipes.
+  static const List<String> plumbingModuleCategoryIds = [
+    'cat-pipes-tubing',
+    'cat-fittings',
+    'cat-valves-controls',
+    'cat-sanitary-wares',
+    'cat-cp-fittings',
+    'cat-drainage-accessories',
+    'cat-consumables',
+  ];
   static const String pipeSummaryImageAsset =
       'assets/images/pipes/astral_upvc_pipe.jpg';
   static const String pipeAllThumbnailAsset =
@@ -58,6 +76,14 @@ abstract final class CatalogMockData {
   /// Spreadsheet-backed UPVC pipe variants (Brand × Sch 40/80 × Size).
   static List<ProductVariant> get upvcPipeMatrixVariants =>
       UpvcPipeMatrixData.buildVariants();
+
+  /// Mock CPVC pipe variants (Brand × SDR schedule × Size).
+  static List<ProductVariant> get cpvcPipeMatrixVariants =>
+      CpvcPipeMatrixData.buildVariants();
+
+  /// Mock PVC SWR (drainage) pipe variants (Brand × Type × Size).
+  static List<ProductVariant> get pvcSwrPipeMatrixVariants =>
+      PvcSwrPipeMatrixData.buildVariants();
 
   /// Normalizes schedule labels such as `SCH40` → `Sch 40`.
   static String? normalizePipeSchedule(String? raw) {
@@ -735,6 +761,7 @@ class _CatalogIndex {
               .roundToDouble()
               .clamp(1.0, 999999999.0);
           price = mrp - (mrp * discountRate);
+          pipeType = row?.pipeType ?? product.subCategoryName;
         }
 
         final stock = isPipesTubing

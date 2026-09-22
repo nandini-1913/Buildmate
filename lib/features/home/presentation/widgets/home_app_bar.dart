@@ -62,27 +62,39 @@ class _HomeAppBarState extends State<HomeAppBar> {
             child: Row(
               children: [
                 Expanded(
-                  child: Text.rich(
-                    TextSpan(
-                      children: [
-                        TextSpan(
-                          text: 'Shivani',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w700,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/images/branding/shivani_icon_mark.png',
+                        height: AppSpacing.space6,
+                      ),
+                      const SizedBox(width: AppSpacing.space2),
+                      Flexible(
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: 'Shivani',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              TextSpan(
+                                text: ' Constructions',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: AppColors.onSurface,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                            ],
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        TextSpan(
-                          text: ' Constructions',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: AppColors.onSurface,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                      ],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
                 IconButton(

@@ -7,7 +7,6 @@ import '../../../../core/state/session_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../widgets/construction_splash_illustration.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -50,28 +49,10 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             children: [
               const Spacer(),
-              const ConstructionSplashIllustration(),
-              const SizedBox(height: AppSpacing.space10),
-              RichText(
-                textAlign: TextAlign.center,
-                text: TextSpan(
-                  style: theme.textTheme.headlineLarge,
-                  children: [
-                    TextSpan(
-                      text: 'Shivani',
-                      style: theme.textTheme.headlineLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    TextSpan(
-                      text: ' Constructions',
-                      style: theme.textTheme.headlineLarge?.copyWith(
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ),
+              Image.asset(
+                'assets/images/branding/shivani_logo.jpeg',
+                width: 220,
+                fit: BoxFit.contain,
               ),
               const SizedBox(height: AppSpacing.space2),
               Text.rich(

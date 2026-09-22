@@ -11,6 +11,9 @@ abstract final class AppColors {
   static const Color onPrimary = Color(0xFFFFFFFF);
   static const Color onPrimaryContainer = Color(0xFF001B4D);
   static const Color primaryPressed = Color(0xFF1246BE);
+  /// Selected-state fill for sidebar rows — a touch darker than
+  /// [primaryContainer] so the active item reads clearly against it.
+  static const Color primarySidebarSelected = Color(0xFFBFD3F7);
 
   // ── Secondary (Amber Accent) ──────────────────────────────────────────
   static const Color secondary = Color(0xFFD97706);
@@ -23,6 +26,14 @@ abstract final class AppColors {
   static const Color tertiaryContainer = Color(0xFFCCFCE7);
   static const Color onTertiary = Color(0xFFFFFFFF);
   static const Color onTertiaryContainer = Color(0xFF002B1A);
+
+  // ── Accent (Catalog CTA Green) ──────────────────────────────────────────
+  // Single source for the "ADD" / "Add to Cart" / selected-state green used
+  // across the pipes & fittings catalog module. Reserved for actionable
+  // controls only — do not reuse for informational text like discounts.
+  static const Color accentGreen = Color(0xFF5FAF2E);
+  static const Color accentGreenContainer = Color(0xFFD8EEBF);
+  static const Color onAccentGreenContainer = Color(0xFF3D7A1A);
 
   // ── Semantic / status ─────────────────────────────────────────────────
   static const Color error = Color(0xFFDC2626);

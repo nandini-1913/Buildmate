@@ -21,14 +21,14 @@ class AuthBrandHeader extends StatelessWidget {
           Container(
             width: AppSpacing.space10,
             height: AppSpacing.space10,
+            padding: const EdgeInsets.all(AppSpacing.space1),
             decoration: BoxDecoration(
               color: AppColors.primaryContainer,
               borderRadius: AppRadius.smAll,
             ),
-            child: const Icon(
-              Icons.storefront_rounded,
-              size: AppSpacing.space5,
-              color: AppColors.primary,
+            child: Image.asset(
+              'assets/images/branding/shivani_icon_mark.png',
+              fit: BoxFit.contain,
             ),
           ),
           const SizedBox(width: AppSpacing.space3),
