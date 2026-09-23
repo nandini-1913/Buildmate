@@ -1,6 +1,5 @@
 import '../../../../core/network/api_client.dart';
 import '../models/api_catalog_product.dart';
-import '../mappers/catalog_api_mapper.dart';
 
 class CatalogRepository {
   CatalogRepository({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
@@ -11,10 +10,7 @@ class CatalogRepository {
   Future<List<ApiCatalogProduct>> fetchPipeCatalog() async {
     final envelope = await _apiClient.getJson(
       '/catalog',
-      queryParameters: {
-        'category': CatalogApiMapper.pipesCategoryName,
-        'active_only': 'true',
-      },
+      timeout: const Duration(seconds: 90),
     );
     final data = envelope['data'];
     if (data is! List) return const [];

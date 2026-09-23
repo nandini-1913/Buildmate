@@ -10,6 +10,9 @@ class ApiCatalogProduct {
     this.productName,
     this.type,
     this.productGroup,
+    this.productClass,
+    this.subcategory,
+    this.size,
     this.brand,
     this.brandId,
     this.sizeMm,
@@ -33,6 +36,9 @@ class ApiCatalogProduct {
   final String? productName;
   final String? type;
   final String? productGroup;
+  final String? productClass;
+  final String? subcategory;
+  final String? size;
   final String? brand;
   final String? brandId;
   final double? sizeMm;
@@ -57,6 +63,9 @@ class ApiCatalogProduct {
       productName: _nullableString(json['productName']),
       type: _nullableString(json['type']),
       productGroup: _nullableString(json['productGroup']),
+      productClass: _nullableString(json['productClass']),
+      subcategory: _nullableString(json['subcategory']),
+      size: _nullableString(json['size']),
       brand: _nullableString(json['brand']),
       brandId: _nullableString(json['brandId']),
       sizeMm: _toDouble(json['sizeMm']),
@@ -80,6 +89,9 @@ class ApiCatalogProduct {
         category,
         type ?? '',
         productGroup ?? '',
+        productClass ?? '',
+        subcategory ?? '',
+        size ?? '',
         brand ?? '',
         sizeMm?.toString() ?? '',
         mrp?.toString() ?? '',

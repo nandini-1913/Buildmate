@@ -74,6 +74,7 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
                 widget.categoryIds!.first ==
                     CatalogMockData.pipesTubingCategoryId);
     if (!isUpvcScope) return false;
+    if (catalog.isUsingApi && catalog.pipeVariants.isNotEmpty) return false;
     if (!catalog.isUsingApi) return true;
 
     final apiUpvc = catalog.pipeVariants.where(
@@ -88,6 +89,7 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
     final isCpvcScope =
         widget.subCategoryId == CatalogMockData.cpvcPipesSubCategoryId;
     if (!isCpvcScope) return false;
+    if (catalog.isUsingApi && catalog.pipeVariants.isNotEmpty) return false;
     if (!catalog.isUsingApi) return true;
 
     final apiCpvc = catalog.pipeVariants.where(
@@ -100,6 +102,7 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
     final isPvcSwrScope =
         widget.subCategoryId == CatalogMockData.pvcSwrPipesSubCategoryId;
     if (!isPvcSwrScope) return false;
+    if (catalog.isUsingApi && catalog.pipeVariants.isNotEmpty) return false;
     if (!catalog.isUsingApi) return true;
 
     final apiPvcSwr = catalog.pipeVariants.where(

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/cart_controller.dart';
+import '../../../../core/state/catalog_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_elevation.dart';
 import '../../../../core/theme/app_radius.dart';
@@ -64,12 +65,29 @@ class _CategoryProductGroup {
   final List<PipesFittingProduct> products;
   final String imageAsset;
 
-  double get minMrp =>
-      products.map((p) => p.mrp).reduce((a, b) => a < b ? a : b);
+  double get minMrp => products
+      .map((p) => p.displayPrice)
+      .reduce((a, b) => a < b ? a : b);
+
+  String? get imageUrl {
+    for (final product in products) {
+      final url = product.imageUrl;
+      if (url != null && url.isNotEmpty) return url;
+    }
+    return null;
+  }
 
   String get unit => 'pcs';
 
-  static const String discountLabel = 'discount 8%';
+  String get discountLabel {
+    final cheapest = products.reduce(
+      (a, b) => a.displayPrice <= b.displayPrice ? a : b,
+    );
+    final discount = cheapest.discountPercent;
+    if (discount == null || discount <= 0) return '';
+    final percent = discount > 1 ? discount : discount * 100;
+    return 'discount ${percent.round()}%';
+  }
 }
 
 /// Maps a mock [PipesFittingProduct] into a [ProductVariant] so it can be
@@ -97,12 +115,14 @@ ProductVariant _variantFor(
     subCategoryId: group.subCategory.toLowerCase(),
     subCategoryName: group.subCategory,
     description: group.title,
-    price: product.mrp,
+    price: product.displayPrice,
     unit: group.unit,
     icon: 'plumbing',
     rating: 0,
     reviewCount: 0,
-    stockStatus: StockStatus.inStock,
+    stockStatus: (product.stock != null && product.stock! <= 0)
+        ? StockStatus.outOfStock
+        : StockStatus.inStock,
     specifications: {
       if (product.size != null) 'Size': product.size!,
       if (product.length != null) 'Length': product.length!,
@@ -110,6 +130,12 @@ ProductVariant _variantFor(
     },
     imageAsset: group.imageAsset,
     mrp: product.mrp,
+    discountRate: product.discountPercent == null
+        ? null
+        : (product.discountPercent! > 1
+            ? product.discountPercent! / 100
+            : product.discountPercent),
+    imageUrl: product.imageUrl,
   );
 }
 
@@ -438,8 +464,86 @@ class _PipesFittingCategoryScreenState
     );
   }
 
+  Widget _catalogBody(PipesFittingCatalog catalog) {
+    final groups = _filteredGroups(catalog);
+    final subCategoryNames = _subCategoryNames(catalog);
+
+    return Stack(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _CategorySidebar(
+              sections: _sections,
+              selected: _section,
+              subCategoryNames: subCategoryNames,
+              selectedSubCategory: _subCategory,
+              onSectionSelected: (section) => setState(() {
+                _section = section;
+                if (section == _CatSection.all) {
+                  _subCategory = null;
+                }
+              }),
+              onSubCategorySelected: (name) =>
+                  setState(() => _subCategory = name),
+            ),
+            Expanded(
+              child: ColoredBox(
+                color: AppColors.background,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ContentHeading(
+                      title: _titleFor(catalog),
+                      subtitle: _subtitleFor(catalog),
+                    ),
+                    Expanded(
+                      child: groups.isEmpty
+                          ? const _CatalogStateMessage(
+                              icon: Icons.inventory_2_outlined,
+                              title: 'No products here yet',
+                              subtitle:
+                                  'Try another category or adjust your filters.',
+                            )
+                          : GridView.builder(
+                              padding: const EdgeInsets.fromLTRB(
+                                AppSpacing.space3,
+                                0,
+                                AppSpacing.space3,
+                                AppSpacing.space2,
+                              ),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                mainAxisSpacing: AppSpacing.space3,
+                                crossAxisSpacing: AppSpacing.space3,
+                                childAspectRatio: 0.56,
+                              ),
+                              itemCount: groups.length,
+                              itemBuilder: (context, index) {
+                                final group = groups[index];
+                                return _CategoryProductCard(
+                                  group: group,
+                                  siblingGroups: groups,
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final catalogController = context.watch<CatalogController>();
+    final liveCatalog = catalogController.pipesFittingCatalog;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Column(
@@ -458,97 +562,37 @@ class _PipesFittingCategoryScreenState
             onBrandTap: _toggleBrandMenu,
           ),
           Expanded(
-            child: FutureBuilder<PipesFittingCatalog>(
-              future: _catalogFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: AppColors.primary),
-                  );
-                }
-                final catalog = snapshot.data;
-                if (catalog == null) {
-                  return const _CatalogStateMessage(
-                    icon: Icons.error_outline_rounded,
-                    title: 'Unable to load catalog',
-                    subtitle: 'Please check your connection and try again.',
-                  );
-                }
-
-                final groups = _filteredGroups(catalog);
-                final subCategoryNames = _subCategoryNames(catalog);
-
-                return Stack(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _CategorySidebar(
-                          sections: _sections,
-                          selected: _section,
-                          subCategoryNames: subCategoryNames,
-                          selectedSubCategory: _subCategory,
-                          onSectionSelected: (section) => setState(() {
-                            _section = section;
-                            if (section == _CatSection.all) {
-                              _subCategory = null;
-                            }
-                          }),
-                          onSubCategorySelected: (name) =>
-                              setState(() => _subCategory = name),
+            child: liveCatalog != null
+                ? _catalogBody(liveCatalog)
+                : catalogController.isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.primary,
                         ),
-                        Expanded(
-                          child: ColoredBox(
-                            color: AppColors.background,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _ContentHeading(
-                                  title: _titleFor(catalog),
-                                  subtitle: _subtitleFor(catalog),
-                                ),
-                                Expanded(
-                                  child: groups.isEmpty
-                                      ? const _CatalogStateMessage(
-                                          icon: Icons.inventory_2_outlined,
-                                          title: 'No products here yet',
-                                          subtitle:
-                                              'Try another category or adjust your filters.',
-                                        )
-                                      : GridView.builder(
-                                          padding: const EdgeInsets.fromLTRB(
-                                            AppSpacing.space3,
-                                            0,
-                                            AppSpacing.space3,
-                                            AppSpacing.space2,
-                                          ),
-                                          gridDelegate:
-                                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                            crossAxisCount: 2,
-                                            mainAxisSpacing: AppSpacing.space3,
-                                            crossAxisSpacing: AppSpacing.space3,
-                                            childAspectRatio: 0.56,
-                                          ),
-                                          itemCount: groups.length,
-                                          itemBuilder: (context, index) {
-                                            final group = groups[index];
-                                            return _CategoryProductCard(
-                                              group: group,
-                                              siblingGroups: groups,
-                                            );
-                                          },
-                                        ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              },
-            ),
+                      )
+                    : FutureBuilder<PipesFittingCatalog>(
+                        future: _catalogFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState !=
+                              ConnectionState.done) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                color: AppColors.primary,
+                              ),
+                            );
+                          }
+                          final catalog = snapshot.data;
+                          if (catalog == null) {
+                            return const _CatalogStateMessage(
+                              icon: Icons.error_outline_rounded,
+                              title: 'Unable to load catalog',
+                              subtitle:
+                                  'Please check your connection and try again.',
+                            );
+                          }
+                          return _catalogBody(catalog);
+                        },
+                      ),
           ),
         ],
       ),
@@ -1476,6 +1520,7 @@ class _CategoryProductCard extends StatelessWidget {
                       clipBehavior: Clip.antiAlias,
                       child: CategoryImage(
                         imageAsset: group.imageAsset,
+                        imageUrl: group.imageUrl,
                         fallbackIcon: 'plumbing',
                         fallbackIconColor: AppColors.outline,
                         fallbackBackground: AppColors.surfaceContainer,
@@ -1561,7 +1606,7 @@ class _CategoryProductCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _CategoryProductGroup.discountLabel,
+                    group.discountLabel,
                     maxLines: 1,
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: AppColors.success,
@@ -1613,6 +1658,10 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
   late _CategoryProductGroup _group = widget.initialGroup;
   late PipesFittingProduct _product = widget.initialProduct;
 
+  PipesFittingProduct _liveProduct(CatalogController catalog) {
+    return catalog.productByCode(_product.productCode) ?? _product;
+  }
+
   static String _typeLabelFor(_CategoryProductGroup group) {
     final match = RegExp(r'\(([^)]+)\)').firstMatch(group.title);
     return match?.group(1) ?? group.title;
@@ -1663,36 +1712,38 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
   }
 
   void _addToCart() {
-    context.read<CartController>().addVariant(_variantFor(_product, _group));
+    final product = _liveProduct(context.read<CatalogController>());
+    context.read<CartController>().addVariant(_variantFor(product, _group));
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           content:
-              Text('${_product.brand} ${_product.productName} added to cart'),
+              Text('${product.brand} ${product.productName} added to cart'),
           duration: const Duration(seconds: 2),
         ),
       );
   }
 
-  String get _title {
-    final code = _product.productCode;
+  String _titleFor(PipesFittingProduct product) {
+    final code = product.productCode;
     final namePart = (code != null && code.isNotEmpty)
-        ? '${code}_${_product.productName}'
-        : _product.productName;
+        ? '${code}_${product.productName}'
+        : product.productName;
     final details = <String>[
       _typeLabelFor(_group),
-      if (_product.size != null && _product.size!.isNotEmpty) _product.size!,
-      if (_product.length != null && _product.length!.isNotEmpty)
-        _product.length!,
+      if (product.size != null && product.size!.isNotEmpty) product.size!,
+      if (product.length != null && product.length!.isNotEmpty)
+        product.length!,
     ];
     final detailText = details.isEmpty ? '' : ', ${details.join(', ')}';
-    return '$namePart$detailText ${_product.brand}';
+    return '$namePart$detailText ${product.brand}';
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final product = _liveProduct(context.watch<CatalogController>());
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -1795,6 +1846,7 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
                       clipBehavior: Clip.antiAlias,
                       child: CategoryImage(
                         imageAsset: _group.imageAsset,
+                        imageUrl: product.imageUrl ?? _group.imageUrl,
                         fallbackIcon: 'plumbing',
                         fallbackIconColor: AppColors.outline,
                         fallbackBackground: AppColors.surfaceContainer,
@@ -1805,13 +1857,13 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
                     ),
                     const SizedBox(height: AppSpacing.space4),
                     Text(
-                      _title,
+                      _titleFor(product),
                       style: theme.textTheme.titleMedium
                           ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: AppSpacing.space2),
                     _ConfiguratorDropdown(
-                      value: _product.size,
+                      value: product.size,
                       options: _sizeOptions,
                       hint: 'Select size',
                       onChanged: _sizeOptions.isEmpty ? null : _onSizeChanged,
@@ -1826,8 +1878,8 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
                     ),
                     const SizedBox(height: AppSpacing.space4),
                     _ConfiguratorAddToCartCard(
-                      selectedSizeLabel: _product.size ?? '—',
-                      price: _product.mrp,
+                      selectedSizeLabel: product.size ?? '—',
+                      price: product.displayPrice,
                       unit: _group.unit,
                       onAddToCart: _addToCart,
                     ),

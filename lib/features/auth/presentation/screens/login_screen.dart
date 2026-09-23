@@ -88,107 +88,123 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.space6,
-              AppSpacing.space4,
-              AppSpacing.space6,
-              AppSpacing.space6,
-            ),
-            child: Column(
-              children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: _skipLogin,
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.onSurfaceVariant,
-                      backgroundColor: AppColors.surface,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: AppRadius.pillAll,
-                        side: const BorderSide(color: LoginFlowColors.fieldBorder),
-                      ),
-                      minimumSize: const Size(0, 34),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.space4,
-                        vertical: AppSpacing.space1,
-                      ),
-                      textStyle: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const padding = EdgeInsets.fromLTRB(
+                AppSpacing.space6,
+                AppSpacing.space4,
+                AppSpacing.space6,
+                AppSpacing.space6,
+              );
+              final minHeight = constraints.maxHeight - padding.vertical;
+              return SingleChildScrollView(
+                padding: padding,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: minHeight > 0 ? minHeight : 0,
+                  ),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      children: [
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _skipLogin,
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.onSurfaceVariant,
+                              backgroundColor: AppColors.surface,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: AppRadius.pillAll,
+                                side: const BorderSide(
+                                  color: LoginFlowColors.fieldBorder,
+                                ),
+                              ),
+                              minimumSize: const Size(0, 34),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.space4,
+                                vertical: AppSpacing.space1,
+                              ),
+                              textStyle: theme.textTheme.labelLarge?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            child: const Text('Skip login'),
+                          ),
+                        ),
+                        const Spacer(flex: 2),
+                        const Center(
+                          child: LoginFlowIconBadge(
+                            imageAsset:
+                                'assets/images/branding/shivani_icon_mark.png',
+                            size: 104,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.space5),
+                        Text(
+                          loginAppDisplayName,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.headlineLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.space2),
+                        Text(
+                          _isLogin
+                              ? 'Welcome back! Login to continue'
+                              : 'Create an account to get started',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: AppColors.onSurfaceVariant,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.space8),
+                        LoginFlowModeToggle(
+                          isLogin: _isLogin,
+                          onChanged: (value) => setState(() => _isLogin = value),
+                        ),
+                        const SizedBox(height: AppSpacing.space6),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Mobile Number',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.space2),
+                        LoginFlowPhoneField(
+                          controller: _mobileController,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        const SizedBox(height: AppSpacing.space2),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'We\'ll send a 6-digit OTP to verify this number',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.space6),
+                        LoginFlowContinueButton(
+                          label: 'Send OTP',
+                          enabled: _canContinue,
+                          loading: _loading,
+                          onPressed: _continue,
+                        ),
+                        const Spacer(flex: 3),
+                        const LoginFlowTermsFooter(),
+                      ],
                     ),
-                    child: const Text('Skip login'),
                   ),
                 ),
-                const Spacer(flex: 2),
-                const Center(
-                  child: LoginFlowIconBadge(
-                    imageAsset: 'assets/images/branding/shivani_icon_mark.png',
-                    size: 104,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.space5),
-                Text(
-                  loginAppDisplayName,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.space2),
-                Text(
-                  _isLogin
-                      ? 'Welcome back! Login to continue'
-                      : 'Create an account to get started',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.space8),
-                LoginFlowModeToggle(
-                  isLogin: _isLogin,
-                  onChanged: (value) => setState(() => _isLogin = value),
-                ),
-                const SizedBox(height: AppSpacing.space6),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Mobile Number',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.space2),
-                LoginFlowPhoneField(
-                  controller: _mobileController,
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: AppSpacing.space2),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'We\'ll send a 6-digit OTP to verify this number',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.space6),
-                LoginFlowContinueButton(
-                  label: 'Send OTP',
-                  enabled: _canContinue,
-                  loading: _loading,
-                  onPressed: _continue,
-                ),
-                const Spacer(flex: 3),
-                const LoginFlowTermsFooter(),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),

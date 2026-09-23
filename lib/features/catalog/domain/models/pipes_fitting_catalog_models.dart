@@ -11,6 +11,10 @@ class PipesFittingProduct {
     this.productCode,
     this.stdPkg,
     required this.mrp,
+    this.sellingPrice,
+    this.discountPercent,
+    this.stock,
+    this.imageUrl,
   });
 
   final String brand;
@@ -20,6 +24,17 @@ class PipesFittingProduct {
   final String? productCode;
   final String? stdPkg;
   final double mrp;
+  final double? sellingPrice;
+  final double? discountPercent;
+  final double? stock;
+  final String? imageUrl;
+
+  /// Price the customer pays. Falls back to MRP when selling price is absent.
+  double get displayPrice {
+    final selling = sellingPrice;
+    if (selling != null && selling > 0) return selling;
+    return mrp;
+  }
 
   factory PipesFittingProduct.fromJson(Map<String, dynamic> json) {
     return PipesFittingProduct(

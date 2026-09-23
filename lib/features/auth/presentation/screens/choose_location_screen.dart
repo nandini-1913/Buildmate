@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../../core/routes/app_routes.dart';
@@ -10,7 +13,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../widgets/login_flow_widgets.dart';
 
 /// Step between signup and profession selection — lets the user drop a pin
-/// on a (mocked) map or use their current location.
+/// on the map or use their current GPS location.
 class ChooseLocationScreen extends StatefulWidget {
   const ChooseLocationScreen({
     super.key,
@@ -29,22 +32,20 @@ class ChooseLocationScreen extends StatefulWidget {
   State<ChooseLocationScreen> createState() => _ChooseLocationScreenState();
 }
 
-class _MockPlace {
-  const _MockPlace(this.line1, this.line2);
+class _PickedPlace {
+  const _PickedPlace(this.line1, this.line2);
   final String line1;
   final String line2;
 }
 
 class _ChooseLocationScreenState extends State<ChooseLocationScreen>
     with SingleTickerProviderStateMixin {
-  static const _mockPlace = _MockPlace(
-    '221B, Shivani Enclave, Sector 18',
-    'Noida, Uttar Pradesh — 201301',
-  );
-  static const _defaultCenter = LatLng(28.5710, 77.3260); // Sector 18, Noida
+  static const _defaultCenter = LatLng(28.6139, 77.2090); // New Delhi fallback
 
   bool _locating = false;
   bool _located = false;
+  _PickedPlace? _place;
+  Timer? _geocodeDebounce;
   late final AnimationController _pinController;
   late final MapController _mapController;
 
@@ -60,6 +61,7 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
 
   @override
   void dispose() {
+    _geocodeDebounce?.cancel();
     _pinController.dispose();
     super.dispose();
   }
@@ -72,16 +74,113 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
     });
     _pinController.repeat(reverse: true);
 
-    await Future.delayed(const Duration(milliseconds: 1100));
-    if (!mounted) return;
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Turn on location services to continue')),
+        );
+        await Geolocator.openLocationSettings();
+        return;
+      }
 
-    _pinController
-      ..stop()
-      ..value = 0;
-    _mapController.move(_defaultCenter, 16);
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location permission is needed to pin your address'),
+          ),
+        );
+        if (permission == LocationPermission.deniedForever) {
+          await Geolocator.openAppSettings();
+        }
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+      if (!mounted) return;
+      await _applyLatLng(
+        LatLng(position.latitude, position.longitude),
+        moveMap: true,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not get your location: $error')),
+      );
+    } finally {
+      _pinController
+        ..stop()
+        ..value = 0;
+      if (mounted) {
+        setState(() => _locating = false);
+      }
+    }
+  }
+
+  Future<void> _applyLatLng(LatLng point, {required bool moveMap}) async {
+    if (moveMap) {
+      _mapController.move(point, 16);
+    }
+    final place = await _reverseGeocode(point);
+    if (!mounted) return;
     setState(() {
-      _locating = false;
+      _place = place;
       _located = true;
+    });
+  }
+
+  Future<_PickedPlace> _reverseGeocode(LatLng point) async {
+    try {
+      final marks = await placemarkFromCoordinates(
+        point.latitude,
+        point.longitude,
+      );
+      if (marks.isEmpty) {
+        return _fallbackPlace(point);
+      }
+      final p = marks.first;
+      final line1 = [
+        p.name,
+        p.street,
+        p.subLocality,
+      ].whereType<String>().where((part) => part.trim().isNotEmpty).join(', ');
+      final line2 = [
+        p.locality,
+        p.administrativeArea,
+        p.postalCode,
+      ].whereType<String>().where((part) => part.trim().isNotEmpty).join(', ');
+      return _PickedPlace(
+        line1.isEmpty ? 'Pinned location' : line1,
+        line2.isEmpty ? 'Dropped pin' : line2,
+      );
+    } catch (_) {
+      return _fallbackPlace(point);
+    }
+  }
+
+  _PickedPlace _fallbackPlace(LatLng point) {
+    return _PickedPlace(
+      '${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}',
+      'Dropped pin',
+    );
+  }
+
+  void _onMapMoved(MapCamera camera, bool hasGesture) {
+    if (!hasGesture) return;
+    _geocodeDebounce?.cancel();
+    _geocodeDebounce = Timer(const Duration(milliseconds: 450), () {
+      _applyLatLng(camera.center, moveMap: false);
     });
   }
 
@@ -111,18 +210,27 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
               children: [
                 FlutterMap(
                   mapController: _mapController,
-                  options: const MapOptions(
+                  options: MapOptions(
                     initialCenter: _defaultCenter,
-                    initialZoom: 15,
-                    interactionOptions: InteractionOptions(
+                    initialZoom: 13,
+                    onPositionChanged: _onMapMoved,
+                    interactionOptions: const InteractionOptions(
                       flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                     ),
                   ),
                   children: [
                     TileLayer(
                       urlTemplate:
+                          'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                      fallbackUrl:
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.shivani.customerapp',
+                      userAgentPackageName: 'com.example.customerapp',
+                    ),
+                    RichAttributionWidget(
+                      attributions: const [
+                        TextSourceAttribution('OpenStreetMap contributors'),
+                        TextSourceAttribution('CARTO'),
+                      ],
                     ),
                   ],
                 ),
@@ -246,7 +354,7 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
                     _AddressCard(
                       located: _located,
                       locating: _locating,
-                      place: _mockPlace,
+                      place: _place,
                       onUseLocation: _useCurrentLocation,
                       onContinue: _continue,
                     ),
@@ -437,7 +545,7 @@ class _AddressCard extends StatelessWidget {
 
   final bool located;
   final bool locating;
-  final _MockPlace place;
+  final _PickedPlace? place;
   final VoidCallback onUseLocation;
   final VoidCallback onContinue;
 
@@ -450,7 +558,7 @@ class _AddressCard extends StatelessWidget {
         children: [
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
-            child: located
+            child: located && place != null
                 ? Row(
                     key: const ValueKey('located'),
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -492,13 +600,13 @@ class _AddressCard extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              place.line1,
+                              place!.line1,
                               style: theme.textTheme.titleSmall?.copyWith(
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                             Text(
-                              place.line2,
+                              place!.line2,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: AppColors.onSurfaceVariant,
                               ),

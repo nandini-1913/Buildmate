@@ -1,4 +1,5 @@
 import '../../domain/models/catalog_models.dart';
+import '../../domain/models/pipes_fitting_catalog_models.dart';
 import '../mock/catalog_mock_data.dart';
 import '../mock/upvc_pipe_matrix_data.dart';
 import '../models/api_catalog_product.dart';
@@ -13,10 +14,92 @@ abstract final class CatalogApiMapper {
           (item) =>
               item.isActive &&
               item.id.isNotEmpty &&
-              item.category.trim() == pipesCategoryName,
+              _isPipeCategory(item.category),
         )
         .map(_toVariant)
         .toList();
+  }
+
+  /// Groups live catalog rows into the pipes screen's Type → class hierarchy.
+  static PipesFittingCatalog toPipesFittingCatalog(
+    List<ApiCatalogProduct> items,
+  ) {
+    final grouped = <String, Map<String, Map<String, List<PipesFittingProduct>>>>{};
+    var categoryName = 'Pipes & Fitting';
+
+    for (final item in items) {
+      if (!item.isActive || item.id.isEmpty) continue;
+      if (!_isPipeCategory(item.category)) continue;
+      if (item.category.trim().isNotEmpty) categoryName = item.category.trim();
+
+      final typeName = _label(item.type, fallback: 'Other');
+      final subName = _label(item.subcategory, fallback: 'Pipes');
+      final className = _label(
+        item.productClass ?? item.productGroup,
+        fallback: 'Standard',
+      );
+      final sizeLabel = item.size?.trim().isNotEmpty == true
+          ? item.size!.trim()
+          : _sizeLabel(item);
+
+      grouped.putIfAbsent(typeName, () => {});
+      final subs = grouped[typeName]!;
+      subs.putIfAbsent(subName, () => {});
+      final classes = subs[subName]!;
+      classes.putIfAbsent(className, () => []);
+      classes[className]!.add(
+        PipesFittingProduct(
+          brand: _label(item.brand, fallback: 'Unknown'),
+          productName: item.productName?.trim().isNotEmpty == true
+              ? item.productName!.trim()
+              : item.name.trim(),
+          length: item.length,
+          size: sizeLabel.isEmpty ? null : sizeLabel,
+          productCode: item.productCode,
+          stdPkg: null,
+          mrp: item.mrp ?? item.standardRate,
+          sellingPrice: item.sellingPrice ?? item.standardRate,
+          discountPercent: item.discount,
+          stock: item.stock,
+          imageUrl: _validImageUrl(item.imageUrl),
+        ),
+      );
+    }
+
+    final types = grouped.entries.map((typeEntry) {
+      final subCategories = typeEntry.value.entries.map((subEntry) {
+        final classes = subEntry.value.entries
+            .map(
+              (classEntry) => PipesFittingClass(
+                className: classEntry.key,
+                products: classEntry.value,
+              ),
+            )
+            .toList();
+        return PipesFittingSubCategory(
+          subCategory: subEntry.key,
+          classes: classes,
+        );
+      }).toList();
+      return PipesFittingType(
+        type: typeEntry.key,
+        subCategories: subCategories,
+      );
+    }).toList();
+
+    return PipesFittingCatalog(category: categoryName, types: types);
+  }
+
+  static bool _isPipeCategory(String category) {
+    final normalized = category.trim().toLowerCase();
+    return normalized == pipesCategoryName.toLowerCase() ||
+        normalized == 'pipes & fitting' ||
+        normalized == 'pipes and fitting';
+  }
+
+  static String _label(String? value, {required String fallback}) {
+    final text = value?.trim() ?? '';
+    return text.isEmpty ? fallback : text;
   }
 
   static ProductVariant _toVariant(ApiCatalogProduct item) {
@@ -45,6 +128,7 @@ abstract final class CatalogApiMapper {
     final scheduleType = _scheduleType(item);
     final pipeTypeLabel = scheduleType ??
         _firstNonEmpty([
+          item.productClass,
           productGroup,
           typeName,
           displayName,
@@ -134,6 +218,8 @@ abstract final class CatalogApiMapper {
   }
 
   static String _sizeLabel(ApiCatalogProduct item) {
+    final explicit = item.size?.trim();
+    if (explicit != null && explicit.isNotEmpty) return explicit;
     if (item.sizeMm != null && item.sizeMm! > 0) {
       final mm = item.sizeMm!;
       final spreadsheetLabel = _spreadsheetSizeLabel(mm, item.sizeInch);

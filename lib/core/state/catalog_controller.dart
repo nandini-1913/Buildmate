@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../network/api_config.dart';
 import '../../features/catalog/data/mappers/catalog_api_mapper.dart';
 import '../../features/catalog/data/mock/catalog_mock_data.dart';
 import '../../features/catalog/data/repositories/catalog_repository.dart';
 import '../../features/catalog/domain/models/catalog_models.dart';
+import '../../features/catalog/domain/models/pipes_fitting_catalog_models.dart';
 
 /// API-backed catalog state with safe polling for the Pipes & Tubing demo.
 ///
@@ -20,15 +22,35 @@ class CatalogController extends ChangeNotifier {
   bool _disposed = false;
   bool _isLoading = false;
   bool _isPolling = false;
+  bool _refreshInFlight = false;
   String? _error;
   bool _useApi = false;
   List<ProductVariant> _apiVariants = const [];
+  PipesFittingCatalog? _pipesCatalog;
   String _apiSyncToken = '';
 
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isUsingApi => _useApi;
   bool get isPolling => _isPolling;
+  PipesFittingCatalog? get pipesFittingCatalog => _pipesCatalog;
+
+  /// Latest copy of a SKU so open product screens pick up polled price/stock.
+  PipesFittingProduct? productByCode(String? productCode) {
+    final code = productCode?.trim();
+    final catalog = _pipesCatalog;
+    if (code == null || code.isEmpty || catalog == null) return null;
+    for (final type in catalog.types) {
+      for (final sub in type.subCategories) {
+        for (final cls in sub.classes) {
+          for (final product in cls.products) {
+            if (product.productCode == code) return product;
+          }
+        }
+      }
+    }
+    return null;
+  }
 
   /// Changes when API catalog content changes — use to reset UI filters.
   String get pipeCatalogFingerprint => _apiSyncToken;
@@ -76,7 +98,7 @@ class CatalogController extends ChangeNotifier {
     await refreshPipeCatalog(showLoading: _apiVariants.isEmpty);
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(
-      const Duration(seconds: 3),
+      ApiConfig.catalogPollInterval,
       (_) => refreshPipeCatalog(showLoading: false),
     );
   }
@@ -88,7 +110,8 @@ class CatalogController extends ChangeNotifier {
   }
 
   Future<void> refreshPipeCatalog({bool showLoading = false}) async {
-    if (_disposed) return;
+    if (_disposed || _refreshInFlight) return;
+    _refreshInFlight = true;
     if (showLoading) {
       _isLoading = true;
       notifyListeners();
@@ -99,12 +122,14 @@ class CatalogController extends ChangeNotifier {
       if (_disposed) return;
 
       final nextVariants = CatalogApiMapper.toVariants(items);
-      final nextToken = _buildSyncToken(nextVariants);
+      final nextCatalog = CatalogApiMapper.toPipesFittingCatalog(items);
+      final nextToken = items.map((item) => item.syncFingerprint).join('||');
 
       if (nextToken != _apiSyncToken) {
         _apiSyncToken = nextToken;
         _apiVariants = nextVariants;
-        _useApi = nextVariants.isNotEmpty;
+        _pipesCatalog = nextCatalog.types.isEmpty ? null : nextCatalog;
+        _useApi = nextVariants.isNotEmpty || _pipesCatalog != null;
         _error = null;
         notifyListeners();
       } else if (_useApi) {
@@ -113,31 +138,17 @@ class CatalogController extends ChangeNotifier {
     } catch (e) {
       if (_disposed) return;
       _error = e.toString();
-      if (_apiVariants.isEmpty) {
+      if (_apiVariants.isEmpty && _pipesCatalog == null) {
         _useApi = false;
         notifyListeners();
       }
     } finally {
+      _refreshInFlight = false;
       if (!_disposed && showLoading) {
         _isLoading = false;
         notifyListeners();
       }
     }
-  }
-
-  String _buildSyncToken(List<ProductVariant> variants) {
-    return variants.map((v) {
-      return [
-        v.id,
-        v.sku,
-        v.price,
-        v.stockStatus.name,
-        v.mrp,
-        v.discountRate,
-        v.imageUrl ?? '',
-        v.pipeType ?? '',
-      ].join(':');
-    }).join('|');
   }
 
   List<Brand> _brandsFromVariants() {
