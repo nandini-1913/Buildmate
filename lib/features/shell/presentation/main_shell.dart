@@ -101,7 +101,6 @@ class _MainShellState extends State<MainShell> {
 
           // Keep auth/splash from nesting inside the shell.
           if (settings.name == AppRoutes.splash ||
-              settings.name == AppRoutes.onboarding ||
               settings.name == AppRoutes.login ||
               settings.name == AppRoutes.createAccount) {
             return MaterialPageRoute<void>(

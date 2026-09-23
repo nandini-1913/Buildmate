@@ -29,7 +29,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final session = context.read<SessionController>();
     final nextRoute = session.isLoggedIn
         ? AppRoutes.homePlaceholder
-        : AppRoutes.onboarding;
+        : AppRoutes.login;
 
     Navigator.of(context).pushReplacementNamed(nextRoute);
   }

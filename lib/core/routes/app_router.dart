@@ -5,7 +5,6 @@ import '../../features/auth/presentation/screens/choose_profession_screen.dart';
 import '../../features/auth/presentation/screens/create_account_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
-import '../../features/auth/presentation/screens/onboarding_screen.dart';
 import '../../features/auth/presentation/screens/otp_verification_screen.dart';
 import '../../features/auth/presentation/screens/password_updated_screen.dart';
 import '../../features/auth/presentation/screens/reset_password_screen.dart';
@@ -35,8 +34,6 @@ abstract final class AppRouter {
     switch (settings.name) {
       case AppRoutes.splash:
         return _fade(const SplashScreen(), settings);
-      case AppRoutes.onboarding:
-        return _fade(const OnboardingScreen(), settings);
       case AppRoutes.login:
         return _slide(const LoginScreen(), settings);
       case AppRoutes.createAccount:
