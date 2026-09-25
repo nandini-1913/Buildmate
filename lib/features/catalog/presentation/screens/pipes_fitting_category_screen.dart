@@ -634,7 +634,11 @@ class _CategoryHeader extends StatelessWidget {
                   Expanded(
                     child: _FilterDropdownButton(
                       key: sortButtonKey,
-                      label: 'Sort By',
+                      label: sort == PipeModuleSort.all
+                          ? 'Sort By'
+                          : _SortDropdownMenu._options
+                              .firstWhere((option) => option.$1 == sort)
+                              .$2,
                       active: sort != PipeModuleSort.all,
                       onTap: onSortTap,
                     ),
