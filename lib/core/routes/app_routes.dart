@@ -63,12 +63,14 @@ class SignupFlowArgs {
   const SignupFlowArgs({
     required this.mobileNumber,
     required this.fullName,
+    this.email = '',
     this.referralCode,
     this.isLocationUpdate = false,
   });
 
   final String mobileNumber;
   final String fullName;
+  final String email;
 
   /// Optional referral code entered during signup.
   final String? referralCode;

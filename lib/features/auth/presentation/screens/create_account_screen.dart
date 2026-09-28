@@ -17,11 +17,13 @@ class CreateAccountScreen extends StatefulWidget {
 
 class _CreateAccountScreenState extends State<CreateAccountScreen> {
   final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _referralController = TextEditingController();
 
   @override
   void dispose() {
     _nameController.dispose();
+    _emailController.dispose();
     _referralController.dispose();
     super.dispose();
   }
@@ -40,6 +42,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       arguments: SignupFlowArgs(
         mobileNumber: mobile,
         fullName: _nameController.text.trim(),
+        email: _emailController.text.trim(),
         referralCode: referralCode.isEmpty ? null : referralCode,
       ),
     );
@@ -106,12 +109,21 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 ),
                 const SizedBox(height: AppSpacing.space5),
                 LoginFlowOutlinedField(
+                  label: 'Email Address',
+                  controller: _emailController,
+                  hintText: 'Enter your email address',
+                  keyboardType: TextInputType.emailAddress,
+                  prefixIcon: Icons.mail_outline_rounded,
+                ),
+                const SizedBox(height: AppSpacing.space5),
+                LoginFlowOutlinedField(
                   label: 'Referral Code (Optional)',
                   controller: _referralController,
                   hintText: 'Enter referral code, if you have one',
                   textCapitalization: TextCapitalization.characters,
                   prefixIcon: Icons.card_giftcard_rounded,
                 ),
+                const SizedBox(height: AppSpacing.space8),
                 const Spacer(),
                 LoginFlowContinueButton(
                   label: 'Continue',

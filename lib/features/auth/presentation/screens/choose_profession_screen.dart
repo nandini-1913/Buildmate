@@ -75,7 +75,7 @@ class _ChooseProfessionScreenState extends State<ChooseProfessionScreen> {
     await context.read<SessionController>().setFromAuth(
       AuthUser(
         id: 'user-mobile-${widget.args.mobileNumber}',
-        email: '',
+        email: widget.args.email,
         fullName: widget.args.fullName,
         mobileNumber: widget.args.mobileNumber,
         role: option.role,
