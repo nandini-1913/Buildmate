@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 /// Approval state of a KYC section (PAN / GST / Bank).
 ///
 /// Once the backend team approves a section it can no longer be edited by
@@ -16,10 +18,22 @@ enum VerificationStatus {
 
 /// A supporting document attached to a KYC section.
 class ProfileDocument {
-  const ProfileDocument({required this.fileName, required this.uploadedOn});
+  const ProfileDocument({
+    required this.fileName,
+    required this.uploadedOn,
+    this.bytes,
+  });
 
   final String fileName;
   final DateTime uploadedOn;
+
+  /// File content, only for documents picked in this session. Seeded
+  /// documents have none (no backend to fetch them from yet).
+  final Uint8List? bytes;
+
+  bool get canPreview => bytes != null;
+
+  bool get isPdf => fileName.toLowerCase().endsWith('.pdf');
 }
 
 class PersonalInfo {

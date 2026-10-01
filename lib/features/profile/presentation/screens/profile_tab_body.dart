@@ -11,6 +11,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../catalog/domain/models/catalog_models.dart';
 import '../../domain/models/profile_models.dart';
+import '../widgets/profile_document_preview.dart';
 import '../widgets/profile_edit_sheets.dart';
 import '../widgets/profile_widgets.dart';
 
@@ -81,6 +82,7 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
     await context.read<ProfileController>().savePan(
           panNumber: saved.panNumber,
           nameOnDocument: saved.nameOnDocument,
+          document: saved.document,
         );
     _showSnack('PAN details submitted for approval');
   }
@@ -92,6 +94,7 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
     await context.read<ProfileController>().saveGst(
           gstNumber: saved.gstNumber,
           nameOnDocument: saved.nameOnDocument,
+          document: saved.document,
         );
     _showSnack('GST details submitted for approval');
   }
@@ -104,6 +107,7 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
           accountNumber: saved.accountNumber,
           ifscCode: saved.ifscCode,
           nameOnAccount: saved.nameOnAccount,
+          document: saved.document,
         );
     _showSnack('Bank details submitted for approval');
   }
@@ -186,7 +190,13 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
                           label: 'Name on Document',
                           value: details.pan.nameOnDocument,
                         ),
-                        ProfileDocumentRow(document: details.pan.document),
+                        ProfileDocumentRow(
+                          document: details.pan.document,
+                          onView: () => showProfileDocument(
+                            context,
+                            details.pan.document,
+                          ),
+                        ),
                       ],
                     ),
                     ProfileSectionCard(
@@ -203,7 +213,13 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
                           label: 'Name on Document',
                           value: details.gst.nameOnDocument,
                         ),
-                        ProfileDocumentRow(document: details.gst.document),
+                        ProfileDocumentRow(
+                          document: details.gst.document,
+                          onView: () => showProfileDocument(
+                            context,
+                            details.gst.document,
+                          ),
+                        ),
                       ],
                     ),
                     ProfileSectionCard(
@@ -224,7 +240,13 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
                           label: 'Name on Account',
                           value: details.bank.nameOnAccount,
                         ),
-                        ProfileDocumentRow(document: details.bank.document),
+                        ProfileDocumentRow(
+                          document: details.bank.document,
+                          onView: () => showProfileDocument(
+                            context,
+                            details.bank.document,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.space2),
@@ -242,21 +264,6 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
                       onTap: () {
                         Navigator.of(context).pushNamed(AppRoutes.myRewards);
                       },
-                    ),
-                    _ProfileTile(
-                      icon: Icons.admin_panel_settings_rounded,
-                      title: 'Admin · Quotations',
-                      subtitle: 'Mark quotations as sold (demo)',
-                      onTap: () {
-                        Navigator.of(context)
-                            .pushNamed(AppRoutes.adminQuotations);
-                      },
-                    ),
-                    _ProfileTile(
-                      icon: Icons.swap_horiz_rounded,
-                      title: 'Switch demo user',
-                      subtitle: 'Test rewards isolation',
-                      onTap: () => _switchDemoUser(context),
                     ),
                     const SizedBox(height: AppSpacing.space4),
                     OutlinedButton.icon(
@@ -276,36 +283,6 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
               ),
           ],
         ),
-      ),
-    );
-  }
-
-  Future<void> _switchDemoUser(BuildContext context) async {
-    final session = context.read<SessionController>();
-    final rewards = context.read<RewardController>();
-    final profile = context.read<ProfileController>();
-
-    if (session.user.id == 'user-demo-1') {
-      session.setUser(
-        const AppUserProfile(
-          id: 'user-amit',
-          name: 'Amit Kumar',
-          email: 'amit.kumar@example.com',
-          phone: '+91 99887 76655',
-        ),
-      );
-    } else {
-      session.resetToDemo();
-    }
-    await Future.wait([
-      rewards.refreshForUser(session.user.id),
-      profile.loadForUser(session.user),
-    ]);
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Switched to ${session.user.name}'),
-        behavior: SnackBarBehavior.floating,
       ),
     );
   }

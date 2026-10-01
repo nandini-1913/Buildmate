@@ -5,7 +5,9 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../domain/models/profile_models.dart';
+import 'profile_document_preview.dart';
 import 'profile_widgets.dart';
+import 'upload/document_picker.dart';
 
 /// Opens the Personal Information edit sheet. Returns the edited info, or
 /// null when dismissed.
@@ -30,7 +32,7 @@ Future<PersonalInfo?> showPersonalInfoEditSheet(
             validator: (v) => ProfileValidators.required(v, 'Address'),
             maxLines: 3),
       ],
-      onSave: (v) => info.copyWith(
+      onSave: (v, _) => info.copyWith(
         fullName: v[0].trim(),
         email: v[2].trim(),
         address: v[3].trim(),
@@ -55,10 +57,10 @@ Future<PanDetails?> showPanEditSheet(BuildContext context, PanDetails pan) {
             validator: (v) => ProfileValidators.required(v, 'Name'),
             capitalization: TextCapitalization.words),
       ],
-      onSave: (v) => PanDetails(
+      onSave: (v, doc) => PanDetails(
         panNumber: v[0],
         nameOnDocument: v[1],
-        document: pan.document,
+        document: doc ?? pan.document,
         status: VerificationStatus.pending,
       ),
     ),
@@ -81,10 +83,10 @@ Future<GstDetails?> showGstEditSheet(BuildContext context, GstDetails gst) {
             validator: (v) => ProfileValidators.required(v, 'Name'),
             capitalization: TextCapitalization.words),
       ],
-      onSave: (v) => GstDetails(
+      onSave: (v, doc) => GstDetails(
         gstNumber: v[0],
         nameOnDocument: v[1],
-        document: gst.document,
+        document: doc ?? gst.document,
         status: VerificationStatus.pending,
       ),
     ),
@@ -114,11 +116,11 @@ Future<BankDetails?> showBankEditSheet(BuildContext context, BankDetails bank) {
             validator: (v) => ProfileValidators.required(v, 'Name'),
             capitalization: TextCapitalization.words),
       ],
-      onSave: (v) => BankDetails(
+      onSave: (v, doc) => BankDetails(
         accountNumber: v[0],
         ifscCode: v[1],
         nameOnAccount: v[2],
-        document: bank.document,
+        document: doc ?? bank.document,
         status: VerificationStatus.pending,
       ),
     ),
@@ -180,8 +182,9 @@ class _FormSheet<T> extends StatefulWidget {
   final String title;
   final List<_FieldSpec> fields;
 
-  /// Builds the result from the trimmed field values (same order as [fields]).
-  final T Function(List<String> values) onSave;
+  /// Builds the result from the trimmed field values (same order as [fields])
+  /// and the supporting document (the replacement, if one was picked).
+  final T Function(List<String> values, ProfileDocument? document) onSave;
   final bool requiresApproval;
   final ProfileDocument? document;
 
@@ -194,6 +197,8 @@ class _FormSheetState<T> extends State<_FormSheet<T>> {
   late final List<TextEditingController> _controllers = [
     for (final f in widget.fields) TextEditingController(text: f.initial),
   ];
+  late ProfileDocument? _document = widget.document;
+  bool _picking = false;
 
   @override
   void dispose() {
@@ -206,7 +211,42 @@ class _FormSheetState<T> extends State<_FormSheet<T>> {
   void _submit() {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final values = [for (final c in _controllers) c.text.trim()];
-    Navigator.of(context).pop(widget.onSave(values));
+    Navigator.of(context).pop(widget.onSave(values, _document));
+  }
+
+  Future<void> _replaceDocument() async {
+    if (_picking) return;
+    setState(() => _picking = true);
+    final PickedDocument? picked;
+    try {
+      picked = await pickSupportingDocument();
+    } on DocumentPickException catch (e) {
+      _showMessage(e.message);
+      return;
+    } catch (e) {
+      debugPrint('File picker failed: $e');
+      _showMessage('Could not open the file picker.');
+      return;
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+    if (picked == null || !mounted) return;
+    // Keep the content so the new document can be previewed before and
+    // after submitting (there is no backend to upload it to yet).
+    setState(() {
+      _document = ProfileDocument(
+        fileName: picked!.name,
+        uploadedOn: DateTime.now(),
+        bytes: picked.bytes,
+      );
+    });
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
@@ -274,7 +314,7 @@ class _FormSheetState<T> extends State<_FormSheet<T>> {
                 _buildField(widget.fields[i], _controllers[i]),
                 const SizedBox(height: AppSpacing.space3),
               ],
-              if (widget.document != null) ...[
+              if (_document != null) ...[
                 Text(
                   'Supporting Document',
                   style: theme.textTheme.labelMedium?.copyWith(
@@ -283,13 +323,32 @@ class _FormSheetState<T> extends State<_FormSheet<T>> {
                 ),
                 const SizedBox(height: AppSpacing.space2),
                 Container(
-                  padding: const EdgeInsets.all(AppSpacing.space3),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.space3,
+                    AppSpacing.space2,
+                    AppSpacing.space1,
+                    AppSpacing.space2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceContainer,
                     borderRadius: AppRadius.mdAll,
                     border: Border.all(color: AppColors.divider),
                   ),
-                  child: ProfileDocumentTile(document: widget.document!),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ProfileDocumentTile(
+                          document: _document!,
+                          onView: () => showProfileDocument(context, _document!),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _replaceDocument,
+                        icon: const Icon(Icons.file_upload_outlined, size: 18),
+                        label: const Text('Replace'),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.space4),
               ],

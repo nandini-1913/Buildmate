@@ -323,11 +323,12 @@ class ProfileInfoRow extends StatelessWidget {
   }
 }
 
-/// "Supporting Document" row: PDF icon, file name, upload date.
+/// "Supporting Document" row: PDF icon, file name, upload date, view button.
 class ProfileDocumentRow extends StatelessWidget {
-  const ProfileDocumentRow({super.key, required this.document});
+  const ProfileDocumentRow({super.key, required this.document, this.onView});
 
   final ProfileDocument document;
+  final VoidCallback? onView;
 
   @override
   Widget build(BuildContext context) {
@@ -344,25 +345,32 @@ class ProfileDocumentRow extends StatelessWidget {
               style: theme.textTheme.bodySmall?.copyWith(color: AppColors.outline),
             ),
           ),
-          Expanded(child: ProfileDocumentTile(document: document)),
+          Expanded(
+            child: ProfileDocumentTile(document: document, onView: onView),
+          ),
         ],
       ),
     );
   }
 }
 
-/// PDF icon + file name + "Uploaded on …".
+/// PDF icon + file name + "Uploaded on …" + optional eye (view) button.
 class ProfileDocumentTile extends StatelessWidget {
-  const ProfileDocumentTile({super.key, required this.document});
+  const ProfileDocumentTile({super.key, required this.document, this.onView});
 
   final ProfileDocument document;
+  final VoidCallback? onView;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Row(
       children: [
-        const Icon(Icons.picture_as_pdf_rounded, size: 22, color: AppColors.error),
+        Icon(
+          document.isPdf ? Icons.picture_as_pdf_rounded : Icons.image_rounded,
+          size: 22,
+          color: document.isPdf ? AppColors.error : AppColors.primary,
+        ),
         const SizedBox(width: AppSpacing.space2),
         Expanded(
           child: Column(
@@ -386,6 +394,14 @@ class ProfileDocumentTile extends StatelessWidget {
             ],
           ),
         ),
+        if (onView != null)
+          IconButton(
+            onPressed: onView,
+            icon: const Icon(Icons.visibility_outlined, size: 20),
+            color: AppColors.primary,
+            tooltip: 'View document',
+            visualDensity: VisualDensity.compact,
+          ),
       ],
     );
   }
