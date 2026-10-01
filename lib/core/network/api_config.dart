@@ -12,7 +12,7 @@
 abstract final class ApiConfig {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://python-api-6aft.onrender.com',
+    defaultValue: 'http://187.127.148.44',
   );
 
   static const String apiPrefix = '/api';

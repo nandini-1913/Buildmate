@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 import '../../../../core/routes/app_routes.dart';
@@ -38,16 +40,31 @@ class _PickedPlace {
   final String line2;
 }
 
+class _SearchHit {
+  const _SearchHit({
+    required this.title,
+    required this.subtitle,
+    required this.point,
+  });
+
+  final String title;
+  final String subtitle;
+  final LatLng point;
+}
+
 class _ChooseLocationScreenState extends State<ChooseLocationScreen>
     with SingleTickerProviderStateMixin {
   static const _defaultCenter = LatLng(28.6139, 77.2090); // New Delhi fallback
 
   bool _locating = false;
   bool _located = false;
+  bool _searching = false;
   _PickedPlace? _place;
+  List<_SearchHit> _searchHits = const [];
   Timer? _geocodeDebounce;
   late final AnimationController _pinController;
   late final MapController _mapController;
+  late final TextEditingController _searchController;
 
   @override
   void initState() {
@@ -57,21 +74,23 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
       duration: const Duration(milliseconds: 900),
     );
     _mapController = MapController();
+    _searchController = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _useCurrentLocation();
+    });
   }
 
   @override
   void dispose() {
     _geocodeDebounce?.cancel();
     _pinController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   Future<void> _useCurrentLocation() async {
     if (_locating) return;
-    setState(() {
-      _locating = true;
-      _located = false;
-    });
+    setState(() => _locating = true);
     _pinController.repeat(reverse: true);
 
     try {
@@ -103,9 +122,18 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
         return;
       }
 
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      if (lastKnown != null && mounted) {
+        await _applyLatLng(
+          LatLng(lastKnown.latitude, lastKnown.longitude),
+          moveMap: true,
+        );
+      }
+
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
         ),
       );
       if (!mounted) return;
@@ -114,7 +142,7 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
         moveMap: true,
       );
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || _located) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not get your location: $error')),
       );
@@ -128,10 +156,21 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
     }
   }
 
-  Future<void> _applyLatLng(LatLng point, {required bool moveMap}) async {
-    if (moveMap) {
+  void _moveMap(LatLng point) {
+    try {
       _mapController.move(point, 16);
+    } catch (_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        try {
+          _mapController.move(point, 16);
+        } catch (_) {}
+      });
     }
+  }
+
+  Future<void> _applyLatLng(LatLng point, {required bool moveMap}) async {
+    if (moveMap) _moveMap(point);
     final place = await _reverseGeocode(point);
     if (!mounted) return;
     setState(() {
@@ -150,16 +189,18 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
         return _fallbackPlace(point);
       }
       final p = marks.first;
-      final line1 = [
+      final line1 = _joinPlaceParts([
         p.name,
         p.street,
         p.subLocality,
-      ].whereType<String>().where((part) => part.trim().isNotEmpty).join(', ');
-      final line2 = [
+        p.thoroughfare,
+      ]);
+      final line2 = _joinPlaceParts([
+        p.subLocality,
         p.locality,
         p.administrativeArea,
         p.postalCode,
-      ].whereType<String>().where((part) => part.trim().isNotEmpty).join(', ');
+      ]);
       return _PickedPlace(
         line1.isEmpty ? 'Pinned location' : line1,
         line2.isEmpty ? 'Dropped pin' : line2,
@@ -167,6 +208,94 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
     } catch (_) {
       return _fallbackPlace(point);
     }
+  }
+
+  String _joinPlaceParts(List<String?> parts) {
+    final seen = <String>{};
+    final useful = <String>[];
+    for (final part in parts) {
+      final text = part?.trim() ?? '';
+      if (text.isEmpty || RegExp(r'^[\d\s,.-]+$').hasMatch(text)) continue;
+      final key = text.toLowerCase();
+      if (!seen.add(key)) continue;
+      useful.add(text);
+    }
+    return useful.join(', ');
+  }
+
+  Future<void> _searchPlaces(String raw) async {
+    final query = raw.trim();
+    if (query.length < 2) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _searching = true);
+    try {
+      final hits = await _nominatimSearch(query);
+      if (!mounted) return;
+      if (hits.isEmpty) {
+        setState(() => _searchHits = const []);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No matching places found')),
+        );
+        return;
+      }
+      if (hits.length == 1) {
+        await _selectSearchHit(hits.first);
+        return;
+      }
+      setState(() => _searchHits = hits);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Search failed. Check your connection.')),
+      );
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  Future<void> _selectSearchHit(_SearchHit hit) async {
+    _searchController.text = hit.title;
+    setState(() => _searchHits = const []);
+    await _applyLatLng(hit.point, moveMap: true);
+  }
+
+  Future<List<_SearchHit>> _nominatimSearch(String query) async {
+    final uri = Uri.https('nominatim.openstreetmap.org', '/search', {
+      'q': query,
+      'format': 'jsonv2',
+      'limit': '5',
+      'addressdetails': '1',
+    });
+    final response = await http.get(
+      uri,
+      headers: const {
+        'User-Agent': 'Buildmate24x7CustomerApp/1.0',
+        'Accept': 'application/json',
+      },
+    ).timeout(const Duration(seconds: 12));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Search failed');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) return const [];
+    final hits = <_SearchHit>[];
+    for (final item in decoded) {
+      if (item is! Map) continue;
+      final lat = double.tryParse('${item['lat']}');
+      final lon = double.tryParse('${item['lon']}');
+      if (lat == null || lon == null) continue;
+      final display = item['display_name']?.toString().trim() ?? '';
+      if (display.isEmpty) continue;
+      final parts = display.split(',');
+      hits.add(
+        _SearchHit(
+          title: parts.first.trim(),
+          subtitle: parts.skip(1).take(2).join(',').trim(),
+          point: LatLng(lat, lon),
+        ),
+      );
+    }
+    return hits;
   }
 
   _PickedPlace _fallbackPlace(LatLng point) {
@@ -221,15 +350,15 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
                   children: [
                     TileLayer(
                       urlTemplate:
-                          'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-                      fallbackUrl:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
                       userAgentPackageName: 'com.example.customerapp',
+                      maxNativeZoom: 19,
                     ),
                     RichAttributionWidget(
                       attributions: const [
-                        TextSourceAttribution('OpenStreetMap contributors'),
-                        TextSourceAttribution('CARTO'),
+                        TextSourceAttribution(
+                          'Esri, Maxar, Earthstar Geographics',
+                        ),
                       ],
                     ),
                   ],
@@ -349,7 +478,18 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
                       ),
                     ),
                     const SizedBox(height: AppSpacing.space4),
-                    _SearchField(),
+                    _SearchField(
+                      controller: _searchController,
+                      searching: _searching,
+                      onSubmit: _searchPlaces,
+                    ),
+                    if (_searchHits.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.space2),
+                      _SearchResults(
+                        hits: _searchHits,
+                        onSelected: _selectSearchHit,
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.space4),
                     _AddressCard(
                       located: _located,
@@ -402,6 +542,16 @@ class _RoundIconButton extends StatelessWidget {
 }
 
 class _SearchField extends StatelessWidget {
+  const _SearchField({
+    required this.controller,
+    required this.searching,
+    required this.onSubmit,
+  });
+
+  final TextEditingController controller;
+  final bool searching;
+  final ValueChanged<String> onSubmit;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -423,14 +573,78 @@ class _SearchField extends StatelessWidget {
           const Icon(Icons.search_rounded, color: LoginFlowColors.accent),
           const SizedBox(width: AppSpacing.space3),
           Expanded(
-            child: Text(
-              'Search area, street or landmark',
-              style: TextStyle(
-                color: AppColors.onSurfaceVariant,
-                fontSize: 15,
+            child: TextField(
+              controller: controller,
+              textInputAction: TextInputAction.search,
+              onSubmitted: onSubmit,
+              decoration: const InputDecoration(
+                isCollapsed: true,
+                border: InputBorder.none,
+                hintText: 'Search area, street or landmark',
+                hintStyle: TextStyle(
+                  color: AppColors.onSurfaceVariant,
+                  fontSize: 15,
+                ),
               ),
+              style: const TextStyle(fontSize: 15),
             ),
           ),
+          if (searching)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: LoginFlowColors.accent,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchResults extends StatelessWidget {
+  const _SearchResults({
+    required this.hits,
+    required this.onSelected,
+  });
+
+  final List<_SearchHit> hits;
+  final ValueChanged<_SearchHit> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: Column(
+        children: [
+          for (var i = 0; i < hits.length; i++) ...[
+            if (i > 0) const Divider(height: 1),
+            ListTile(
+              dense: true,
+              leading: const Icon(
+                Icons.place_outlined,
+                color: LoginFlowColors.accent,
+              ),
+              title: Text(
+                hits[i].title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall,
+              ),
+              subtitle: hits[i].subtitle.isEmpty
+                  ? null
+                  : Text(
+                      hits[i].subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+              onTap: () => onSelected(hits[i]),
+            ),
+          ],
         ],
       ),
     );

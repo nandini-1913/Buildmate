@@ -7,7 +7,6 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../services/auth_service.dart';
-import '../../services/mock_auth_service.dart';
 import '../widgets/auth_validators.dart';
 import '../widgets/login_flow_widgets.dart';
 
@@ -30,7 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _auth = widget.authService ?? MockAuthService();
+    _auth = widget.authService ?? context.read<AuthService>();
   }
 
   @override
@@ -47,9 +46,15 @@ class _LoginScreenState extends State<LoginScreen> {
     if (AuthValidators.mobile(mobile) != null) return;
 
     setState(() => _loading = true);
-    await _auth.sendOtp(mobileNumber: mobile);
+    final result = await _auth.sendOtp(mobileNumber: mobile);
     if (!mounted) return;
     setState(() => _loading = false);
+    if (!result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message ?? 'Could not send the OTP.')),
+      );
+      return;
+    }
 
     Navigator.of(context).pushNamed(
       AppRoutes.otpVerification,
@@ -66,6 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     if (result.success && result.user != null) {
       await context.read<SessionController>().setFromAuth(result.user!);
+      if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil(
         AppRoutes.homePlaceholder,
         (_) => false,
@@ -136,7 +142,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const Center(
                           child: LoginFlowIconBadge(
                             imageAsset:
-                                'assets/images/branding/shivani_icon_mark.png',
+                                'assets/images/branding/AppLogo.png',
                             size: 104,
                           ),
                         ),

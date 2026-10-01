@@ -75,14 +75,14 @@ class _HomeAppBarState extends State<HomeAppBar> {
                           TextSpan(
                             children: [
                               TextSpan(
-                                text: 'Shivani',
+                                text: 'Buildmate',
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   color: AppColors.primary,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
                               TextSpan(
-                                text: ' Constructions',
+                                text: ' 24x7',
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   color: AppColors.onSurface,
                                   fontWeight: FontWeight.w400,

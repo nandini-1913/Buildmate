@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "628190244951",
+    "project_id": "buildmate-24x7",
+    "storage_bucket": "buildmate-24x7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:628190244951:android:126a36346e5d18a5b5f312",
+        "android_client_info": {
+          "package_name": "com.example.customerapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMoHvnwfN4H4xowLH2otGEk8G6nNByx28"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

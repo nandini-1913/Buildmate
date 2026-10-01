@@ -29,7 +29,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final session = context.read<SessionController>();
     final nextRoute = session.isLoggedIn
         ? AppRoutes.homePlaceholder
-        : AppRoutes.onboarding;
+        : AppRoutes.login;
 
     Navigator.of(context).pushReplacementNamed(nextRoute);
   }
@@ -50,7 +50,7 @@ class _SplashScreenState extends State<SplashScreen> {
             children: [
               const Spacer(),
               Image.asset(
-                'assets/images/branding/shivani_logo.jpeg',
+                'assets/images/branding/AppLogo.png',
                 width: 220,
                 fit: BoxFit.contain,
               ),

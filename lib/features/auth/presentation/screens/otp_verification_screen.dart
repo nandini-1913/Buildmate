@@ -49,7 +49,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   @override
   void initState() {
     super.initState();
-    _auth = widget.authService ?? MockAuthService();
+    _auth = widget.authService ??
+        (_isPasswordReset
+            ? MockAuthService()
+            : context.read<AuthService>());
     _contact = widget.args.contactDisplay;
     _startTimer();
   }
@@ -134,7 +137,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     _startTimer();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Verification code resent (use 123456)'),
+        content: Text('Verification code resent'),
       ),
     );
   }
