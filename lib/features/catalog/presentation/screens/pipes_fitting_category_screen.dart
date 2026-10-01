@@ -55,12 +55,14 @@ class _CategoryProductGroup {
   const _CategoryProductGroup({
     required this.title,
     required this.subCategory,
+    required this.className,
     required this.products,
     required this.imageAsset,
   });
 
   final String title;
   final String subCategory;
+  final String className;
   final List<PipesFittingProduct> products;
   final String imageAsset;
 
@@ -145,12 +147,15 @@ class _PipesFittingCategoryScreenState
   PipeModuleSort _sort = PipeModuleSort.all;
   String? _selectedBrand;
   String? _size;
+  String? _class;
   final GlobalKey _sortButtonKey = GlobalKey();
   final GlobalKey _sizeButtonKey = GlobalKey();
   final GlobalKey _brandButtonKey = GlobalKey();
+  final GlobalKey _classButtonKey = GlobalKey();
   OverlayEntry? _sortOverlay;
   OverlayEntry? _sizeOverlay;
   OverlayEntry? _brandOverlay;
+  OverlayEntry? _classOverlay;
 
   @override
   void initState() {
@@ -163,6 +168,7 @@ class _PipesFittingCategoryScreenState
     _closeSortMenu();
     _closeSizeMenu();
     _closeBrandMenu();
+    _closeClassMenu();
     super.dispose();
   }
 
@@ -196,7 +202,9 @@ class _PipesFittingCategoryScreenState
     final names = <String>[];
     for (final type in catalog.types) {
       for (final sub in type.subCategories) {
-        if (!names.any((n) => n.toLowerCase() == sub.subCategory.toLowerCase())) {
+        if (!names.any(
+          (n) => n.toLowerCase() == sub.subCategory.toLowerCase(),
+        )) {
           names.add(sub.subCategory);
         }
       }
@@ -227,6 +235,7 @@ class _PipesFittingCategoryScreenState
             _CategoryProductGroup(
               title: '${type.type} ${sub.subCategory} (${cls.className})',
               subCategory: sub.subCategory,
+              className: cls.className,
               products: cls.products,
               imageAsset: _imageForType(type.type),
             ),
@@ -262,6 +271,11 @@ class _PipesFittingCategoryScreenState
     }
     if (_size != null && _size!.isNotEmpty) {
       groups = groups.where((g) => _matchesSize(g, _size!)).toList();
+    }
+    if (_class != null) {
+      groups = groups
+          .where((g) => PipeFilterClasses.matches(g.className, _class!))
+          .toList();
     }
 
     switch (_sort) {
@@ -324,10 +338,16 @@ class _PipesFittingCategoryScreenState
     _brandOverlay = null;
   }
 
+  void _closeClassMenu() {
+    _classOverlay?.remove();
+    _classOverlay = null;
+  }
+
   void _closeAllMenus() {
     _closeSortMenu();
     _closeSizeMenu();
     _closeBrandMenu();
+    _closeClassMenu();
   }
 
   void _showDropdown({
@@ -350,8 +370,10 @@ class _PipesFittingCategoryScreenState
         // Anchor to the button's right edge, but clamp so the menu never
         // spills off either side of the screen.
         final maxLeft = screenWidth - menuWidth - edgeMargin;
-        final left = (offset.dx + size.width - menuWidth)
-            .clamp(edgeMargin, maxLeft < edgeMargin ? edgeMargin : maxLeft);
+        final left = (offset.dx + size.width - menuWidth).clamp(
+          edgeMargin,
+          maxLeft < edgeMargin ? edgeMargin : maxLeft,
+        );
 
         return Stack(
           children: [
@@ -438,120 +460,173 @@ class _PipesFittingCategoryScreenState
     );
   }
 
+  void _toggleClassMenu() {
+    if (_classOverlay != null) {
+      _closeClassMenu();
+      return;
+    }
+    _closeAllMenus();
+    _showDropdown(
+      buttonKey: _classButtonKey,
+      setOverlay: (entry) => _classOverlay = entry,
+      closeThis: _closeClassMenu,
+      menuWidth: 200,
+      buildMenu: () => _ClassDropdownMenu(
+        classes: PipeFilterClasses.forType(_typeNameForSection(_section)),
+        selectedClass: _class,
+        onSelected: (className) {
+          setState(() => _class = className);
+          _closeClassMenu();
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Column(
-        children: [
-          _CategoryHeader(
-            sort: _sort,
-            selectedSize: _size,
-            selectedBrand: _selectedBrand,
-            sortButtonKey: _sortButtonKey,
-            sizeButtonKey: _sizeButtonKey,
-            brandButtonKey: _brandButtonKey,
-            onBack: () => Navigator.of(context).maybePop(),
-            onSearch: () => Navigator.of(context).pushNamed(AppRoutes.search),
-            onSortTap: _toggleSortMenu,
-            onSizeTap: _toggleSizeMenu,
-            onBrandTap: _toggleBrandMenu,
-          ),
-          Expanded(
-            child: FutureBuilder<PipesFittingCatalog>(
-              future: _catalogFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: AppColors.primary),
-                  );
-                }
-                final catalog = snapshot.data;
-                if (catalog == null) {
-                  return const _CatalogStateMessage(
-                    icon: Icons.error_outline_rounded,
-                    title: 'Unable to load catalog',
-                    subtitle: 'Please check your connection and try again.',
-                  );
-                }
+      // Guard against very short viewports (e.g. web with DevTools docked):
+      // enforce a minimum height and let the page scroll instead of overflowing.
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          const minBodyHeight = 480.0;
+          if (constraints.maxHeight >= minBodyHeight) {
+            return _buildBody(context);
+          }
+          return SingleChildScrollView(
+            child: SizedBox(height: minBodyHeight, child: _buildBody(context)),
+          );
+        },
+      ),
+    );
+  }
 
-                final groups = _filteredGroups(catalog);
-                final subCategoryNames = _subCategoryNames(catalog);
+  Widget _buildBody(BuildContext context) {
+    return Column(
+      children: [
+        _CategoryHeader(
+          sort: _sort,
+          selectedSize: _size,
+          selectedBrand: _selectedBrand,
+          selectedClass: _class,
+          sortButtonKey: _sortButtonKey,
+          sizeButtonKey: _sizeButtonKey,
+          brandButtonKey: _brandButtonKey,
+          classButtonKey: _classButtonKey,
+          onBack: () => Navigator.of(context).maybePop(),
+          onSearch: () => Navigator.of(context).pushNamed(AppRoutes.search),
+          onSortTap: _toggleSortMenu,
+          onSizeTap: _toggleSizeMenu,
+          onBrandTap: _toggleBrandMenu,
+          onClassTap: _toggleClassMenu,
+        ),
+        Expanded(
+          child: FutureBuilder<PipesFittingCatalog>(
+            future: _catalogFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                );
+              }
+              final catalog = snapshot.data;
+              if (catalog == null) {
+                return const _CatalogStateMessage(
+                  icon: Icons.error_outline_rounded,
+                  title: 'Unable to load catalog',
+                  subtitle: 'Please check your connection and try again.',
+                );
+              }
 
-                return Stack(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _CategorySidebar(
-                          sections: _sections,
-                          selected: _section,
-                          subCategoryNames: subCategoryNames,
-                          selectedSubCategory: _subCategory,
-                          onSectionSelected: (section) => setState(() {
-                            _section = section;
-                            if (section == _CatSection.all) {
-                              _subCategory = null;
-                            }
-                          }),
-                          onSubCategorySelected: (name) =>
-                              setState(() => _subCategory = name),
-                        ),
-                        Expanded(
-                          child: ColoredBox(
-                            color: AppColors.background,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _ContentHeading(
-                                  title: _titleFor(catalog),
-                                  subtitle: _subtitleFor(catalog),
-                                ),
-                                Expanded(
-                                  child: groups.isEmpty
-                                      ? const _CatalogStateMessage(
-                                          icon: Icons.inventory_2_outlined,
-                                          title: 'No products here yet',
-                                          subtitle:
-                                              'Try another category or adjust your filters.',
-                                        )
-                                      : GridView.builder(
-                                          padding: const EdgeInsets.fromLTRB(
-                                            AppSpacing.space3,
-                                            0,
-                                            AppSpacing.space3,
-                                            AppSpacing.space2,
-                                          ),
-                                          gridDelegate:
-                                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                            crossAxisCount: 2,
-                                            mainAxisSpacing: AppSpacing.space3,
-                                            crossAxisSpacing: AppSpacing.space3,
-                                            childAspectRatio: 0.56,
-                                          ),
-                                          itemCount: groups.length,
-                                          itemBuilder: (context, index) {
-                                            final group = groups[index];
-                                            return _CategoryProductCard(
-                                              group: group,
-                                              siblingGroups: groups,
-                                            );
-                                          },
+              final groups = _filteredGroups(catalog);
+              final subCategoryNames = _subCategoryNames(catalog);
+
+              return Stack(
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _CategorySidebar(
+                        sections: _sections,
+                        selected: _section,
+                        subCategoryNames: subCategoryNames,
+                        selectedSubCategory: _subCategory,
+                        onSectionSelected: (section) => setState(() {
+                          _section = section;
+                          if (section == _CatSection.all) {
+                            _subCategory = null;
+                          }
+                          // Drop a class the newly picked Type doesn't offer.
+                          final classes = PipeFilterClasses.forType(
+                            _typeNameForSection(section),
+                          );
+                          if (_class != null &&
+                              !classes.any(
+                                (c) => PipeFilterClasses.matches(c, _class!),
+                              )) {
+                            _class = null;
+                          }
+                        }),
+                        onSubCategorySelected: (name) =>
+                            setState(() => _subCategory = name),
+                      ),
+                      Expanded(
+                        child: ColoredBox(
+                          color: AppColors.background,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _ContentHeading(
+                                title: _titleFor(catalog),
+                                subtitle: _subtitleFor(catalog),
+                              ),
+                              Expanded(
+                                child: groups.isEmpty
+                                    ? const _CatalogStateMessage(
+                                        icon: Icons.inventory_2_outlined,
+                                        title: 'No products here yet',
+                                        subtitle:
+                                            'Try another category or adjust your filters.',
+                                      )
+                                    : GridView.builder(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          AppSpacing.space3,
+                                          0,
+                                          AppSpacing.space3,
+                                          AppSpacing.space2,
                                         ),
-                                ),
-                              ],
-                            ),
+                                        gridDelegate:
+                                            const SliverGridDelegateWithFixedCrossAxisCount(
+                                              crossAxisCount: 2,
+                                              mainAxisSpacing:
+                                                  AppSpacing.space3,
+                                              crossAxisSpacing:
+                                                  AppSpacing.space3,
+                                              childAspectRatio: 0.56,
+                                            ),
+                                        itemCount: groups.length,
+                                        itemBuilder: (context, index) {
+                                          final group = groups[index];
+                                          return _CategoryProductCard(
+                                            group: group,
+                                            siblingGroups: groups,
+                                          );
+                                        },
+                                      ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ],
-                );
-              },
-            ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -561,27 +636,33 @@ class _CategoryHeader extends StatelessWidget {
     required this.sort,
     required this.selectedSize,
     required this.selectedBrand,
+    required this.selectedClass,
     required this.sortButtonKey,
     required this.sizeButtonKey,
     required this.brandButtonKey,
+    required this.classButtonKey,
     required this.onBack,
     required this.onSearch,
     required this.onSortTap,
     required this.onSizeTap,
     required this.onBrandTap,
+    required this.onClassTap,
   });
 
   final PipeModuleSort sort;
   final String? selectedSize;
   final String? selectedBrand;
+  final String? selectedClass;
   final Key sortButtonKey;
   final Key sizeButtonKey;
   final Key brandButtonKey;
+  final Key classButtonKey;
   final VoidCallback onBack;
   final VoidCallback onSearch;
   final VoidCallback onSortTap;
   final VoidCallback onSizeTap;
   final VoidCallback onBrandTap;
+  final VoidCallback onClassTap;
 
   @override
   Widget build(BuildContext context) {
@@ -637,8 +718,8 @@ class _CategoryHeader extends StatelessWidget {
                       label: sort == PipeModuleSort.all
                           ? 'Sort By'
                           : _SortDropdownMenu._options
-                              .firstWhere((option) => option.$1 == sort)
-                              .$2,
+                                .firstWhere((option) => option.$1 == sort)
+                                .$2,
                       active: sort != PipeModuleSort.all,
                       onTap: onSortTap,
                     ),
@@ -659,6 +740,15 @@ class _CategoryHeader extends StatelessWidget {
                       label: selectedBrand ?? 'Brand',
                       active: selectedBrand != null,
                       onTap: onBrandTap,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.space2),
+                  Expanded(
+                    child: _FilterDropdownButton(
+                      key: classButtonKey,
+                      label: selectedClass ?? 'Class',
+                      active: selectedClass != null,
+                      onTap: onClassTap,
                     ),
                   ),
                 ],
@@ -862,6 +952,51 @@ class _BrandDropdownMenuState extends State<_BrandDropdownMenu> {
   }
 }
 
+class _ClassDropdownMenu extends StatefulWidget {
+  const _ClassDropdownMenu({
+    required this.classes,
+    required this.selectedClass,
+    required this.onSelected,
+  });
+
+  final List<String> classes;
+  final String? selectedClass;
+  final ValueChanged<String?> onSelected;
+
+  @override
+  State<_ClassDropdownMenu> createState() => _ClassDropdownMenuState();
+}
+
+class _ClassDropdownMenuState extends State<_ClassDropdownMenu> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final classes = widget.classes.where(
+      (name) => name.toLowerCase().contains(_query.toLowerCase()),
+    );
+
+    return _DropdownMenuChrome(
+      searchHint: 'Search class...',
+      onQueryChanged: (value) => setState(() => _query = value),
+      children: [
+        if (_query.isEmpty)
+          _DropdownTile(
+            label: 'All Classes',
+            selected: widget.selectedClass == null,
+            onTap: () => widget.onSelected(null),
+          ),
+        for (final name in classes)
+          _DropdownTile(
+            label: name,
+            selected: widget.selectedClass == name,
+            onTap: () => widget.onSelected(name),
+          ),
+      ],
+    );
+  }
+}
+
 /// Shared card chrome + search field wrapper for the header filter dropdowns.
 class _DropdownMenuChrome extends StatelessWidget {
   const _DropdownMenuChrome({
@@ -891,7 +1026,10 @@ class _DropdownMenuChrome extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _DropdownSearchField(hintText: searchHint, onChanged: onQueryChanged),
+            _DropdownSearchField(
+              hintText: searchHint,
+              onChanged: onQueryChanged,
+            ),
             Flexible(
               child: children.isEmpty
                   ? Padding(
@@ -902,13 +1040,15 @@ class _DropdownMenuChrome extends StatelessWidget {
                       child: Text(
                         'No matches found',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.onSurfaceVariant,
-                            ),
+                          color: AppColors.onSurfaceVariant,
+                        ),
                       ),
                     )
                   : ListView(
                       shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.space1),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.space1,
+                      ),
                       children: children,
                     ),
             ),
@@ -920,10 +1060,7 @@ class _DropdownMenuChrome extends StatelessWidget {
 }
 
 class _DropdownSearchField extends StatelessWidget {
-  const _DropdownSearchField({
-    required this.hintText,
-    required this.onChanged,
-  });
+  const _DropdownSearchField({required this.hintText, required this.onChanged});
 
   final String hintText;
   final ValueChanged<String> onChanged;
@@ -957,13 +1094,19 @@ class _DropdownSearchField extends StatelessWidget {
             focusedErrorBorder: InputBorder.none,
             disabledBorder: InputBorder.none,
             hintText: hintText,
-            hintStyle: const TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
+            hintStyle: const TextStyle(
+              fontSize: 13,
+              color: AppColors.onSurfaceVariant,
+            ),
             prefixIcon: const Icon(
               Icons.search_rounded,
               size: 18,
               color: AppColors.onSurfaceVariant,
             ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 36,
+              minHeight: 36,
+            ),
             contentPadding: const EdgeInsets.symmetric(vertical: 10),
           ),
         ),
@@ -990,7 +1133,9 @@ class _DropdownTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        color: selected ? AppColors.primaryContainer.withValues(alpha: 0.35) : null,
+        color: selected
+            ? AppColors.primaryContainer.withValues(alpha: 0.35)
+            : null,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.space4,
           vertical: AppSpacing.space3,
@@ -1004,12 +1149,18 @@ class _DropdownTile extends StatelessWidget {
                 color: selected ? AppColors.primary : Colors.transparent,
                 borderRadius: BorderRadius.circular(5),
                 border: Border.all(
-                  color: selected ? AppColors.primary : AppColors.outlineVariant,
+                  color: selected
+                      ? AppColors.primary
+                      : AppColors.outlineVariant,
                   width: 1.5,
                 ),
               ),
               child: selected
-                  ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    )
                   : null,
             ),
             const SizedBox(width: AppSpacing.space3),
@@ -1020,7 +1171,9 @@ class _DropdownTile extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  color: selected ? AppColors.onBackground : AppColors.onSurface,
+                  color: selected
+                      ? AppColors.onBackground
+                      : AppColors.onSurface,
                 ),
               ),
             ),
@@ -1032,10 +1185,7 @@ class _DropdownTile extends StatelessWidget {
 }
 
 class _HeaderIconButton extends StatelessWidget {
-  const _HeaderIconButton({
-    required this.icon,
-    required this.onPressed,
-  });
+  const _HeaderIconButton({required this.icon, required this.onPressed});
 
   final IconData icon;
   final VoidCallback onPressed;
@@ -1062,10 +1212,7 @@ class _HeaderIconButton extends StatelessWidget {
 }
 
 class _ContentHeading extends StatelessWidget {
-  const _ContentHeading({
-    required this.title,
-    required this.subtitle,
-  });
+  const _ContentHeading({required this.title, required this.subtitle});
 
   final String title;
   final String subtitle;
@@ -1216,8 +1363,8 @@ class _CategorySidebar extends StatelessWidget {
               for (final name in subCategoryNames)
                 _SidebarSubCategoryRow(
                   label: name,
-                  selected: selectedSubCategory?.toLowerCase() ==
-                      name.toLowerCase(),
+                  selected:
+                      selectedSubCategory?.toLowerCase() == name.toLowerCase(),
                   onTap: () => onSubCategorySelected(name),
                 ),
             ],
@@ -1246,11 +1393,11 @@ class _SidebarSectionLabel extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
-              fontSize: 11,
-              letterSpacing: 0.4,
-            ),
+          color: AppColors.onSurfaceVariant,
+          fontWeight: FontWeight.w700,
+          fontSize: 11,
+          letterSpacing: 0.4,
+        ),
       ),
     );
   }
@@ -1274,7 +1421,9 @@ class _SidebarAllRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space2),
       child: Material(
-        color: selected ? AppColors.primaryContainer.withValues(alpha: 0.55) : Colors.transparent,
+        color: selected
+            ? AppColors.primaryContainer.withValues(alpha: 0.55)
+            : Colors.transparent,
         borderRadius: AppRadius.smAll,
         child: InkWell(
           onTap: onTap,
@@ -1364,7 +1513,9 @@ class _SidebarTypeRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.labelMedium?.copyWith(
                       fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                      color: selected ? AppColors.onSurface : AppColors.onBackground,
+                      color: selected
+                          ? AppColors.onSurface
+                          : AppColors.onBackground,
                     ),
                   ),
                 ),
@@ -1414,7 +1565,9 @@ class _SidebarSubCategoryRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.labelMedium?.copyWith(
                 fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-                color: selected ? AppColors.onSurface : AppColors.onSurfaceVariant,
+                color: selected
+                    ? AppColors.onSurface
+                    : AppColors.onSurfaceVariant,
               ),
             ),
           ),
@@ -1457,9 +1610,9 @@ class _CategoryProductCard extends StatelessWidget {
       child: InkWell(
         onTap: () => _openConfigurator(context),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AspectRatio(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AspectRatio(
               aspectRatio: 1.02,
               child: Stack(
                 children: [
@@ -1623,9 +1776,11 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
   }
 
   List<_CategoryProductGroup> get _siblingGroups => widget.groups
-      .where((g) =>
-          g.subCategory.toLowerCase() ==
-          widget.initialGroup.subCategory.toLowerCase())
+      .where(
+        (g) =>
+            g.subCategory.toLowerCase() ==
+            widget.initialGroup.subCategory.toLowerCase(),
+      )
       .toList();
 
   List<String> get _sizeOptions {
@@ -1654,8 +1809,7 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
 
   void _onTypeChanged(String? type) {
     if (type == null) return;
-    final groupMatches =
-        _siblingGroups.where((g) => _typeLabelFor(g) == type);
+    final groupMatches = _siblingGroups.where((g) => _typeLabelFor(g) == type);
     if (groupMatches.isEmpty) return;
     final newGroup = groupMatches.first;
     if (newGroup == _group) return;
@@ -1668,13 +1822,23 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
 
   void _addToCart() {
     context.read<CartController>().addVariant(_variantFor(_product, _group));
+    // The snackbar lives on the root messenger and can outlive this screen,
+    // so resolve the navigator now instead of using this State's context later.
+    final navigator = Navigator.of(context);
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content:
-              Text('${_product.brand} ${_product.productName} added to cart'),
-          duration: const Duration(seconds: 2),
+          content: Text(
+            '${_product.brand} ${_product.productName} added to cart',
+          ),
+          duration: const Duration(seconds: 3),
+          // SnackBars with an action persist by default; auto-dismiss instead.
+          persist: false,
+          action: SnackBarAction(
+            label: 'View Cart',
+            onPressed: () => navigator.pushNamed(AppRoutes.cart),
+          ),
         ),
       );
   }
@@ -1758,8 +1922,9 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
                               Expanded(
                                 child: Text(
                                   'Search products',
-                                  style: theme.textTheme.bodyMedium
-                                      ?.copyWith(color: AppColors.outline),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.outline,
+                                  ),
                                 ),
                               ),
                             ],
@@ -1810,8 +1975,9 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
                     const SizedBox(height: AppSpacing.space4),
                     Text(
                       _title,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w800),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.space2),
                     _ConfiguratorDropdown(
@@ -1825,8 +1991,9 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
                       value: _typeLabelFor(_group),
                       options: _typeOptions,
                       hint: 'Select type',
-                      onChanged:
-                          _typeOptions.length <= 1 ? null : _onTypeChanged,
+                      onChanged: _typeOptions.length <= 1
+                          ? null
+                          : _onTypeChanged,
                     ),
                     const SizedBox(height: AppSpacing.space4),
                     _ConfiguratorAddToCartCard(
@@ -1890,10 +2057,7 @@ class _ConfiguratorDropdown extends StatelessWidget {
           style: textStyle,
           items: [
             for (final option in options)
-              DropdownMenuItem<String>(
-                value: option,
-                child: Text(option),
-              ),
+              DropdownMenuItem<String>(value: option, child: Text(option)),
           ],
           onChanged: onChanged,
         ),
@@ -1968,8 +2132,9 @@ class _ConfiguratorAddToCartCard extends StatelessWidget {
                 ),
                 Text(
                   selectedSizeLabel,
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: AppColors.onSurfaceVariant),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),

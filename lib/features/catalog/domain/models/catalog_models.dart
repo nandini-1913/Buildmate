@@ -149,7 +149,7 @@ class CatalogProduct {
   final bool isFeatured;
   final bool isPopular;
 
-  String get priceLabel => _formatInr(basePrice);
+  String get priceLabel => formatInr(basePrice);
 
   String get priceWithUnit => '$priceLabel / $unit';
 }
@@ -244,15 +244,15 @@ class ProductVariant {
     return discountRate;
   }
 
-  String get priceLabel => _formatInr(price);
+  String get priceLabel => formatInr(price);
 
-  String? get mrpLabel => mrp == null ? null : _formatInr(mrp!);
+  String? get mrpLabel => mrp == null ? null : formatInr(mrp!);
 
   String? get purchasePriceLabel =>
-      purchasePrice == null ? null : _formatInr(purchasePrice!);
+      purchasePrice == null ? null : formatInr(purchasePrice!);
 
   String? get sellingPriceLabel =>
-      sellingPrice == null ? null : _formatInr(sellingPrice!);
+      sellingPrice == null ? null : formatInr(sellingPrice!);
 
   String? get discountPercentLabel {
     final rate = effectiveDiscountRate;
@@ -432,7 +432,8 @@ class QuotationDraft {
   }
 }
 
-String _formatInr(double price) {
+/// Formats [price] as whole rupees with Western digit grouping (₹12,200).
+String formatInr(double price) {
   final formatted = price >= 1000
       ? price.toStringAsFixed(0).replaceAllMapped(
             RegExp(r'(\d)(?=(\d{3})+(?!\d))'),

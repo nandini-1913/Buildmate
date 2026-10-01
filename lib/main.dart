@@ -6,6 +6,7 @@ import 'core/routes/app_router.dart';
 import 'core/routes/app_routes.dart';
 import 'core/state/catalog_controller.dart';
 import 'core/state/cart_controller.dart';
+import 'core/state/profile_controller.dart';
 import 'core/state/quotation_controller.dart';
 import 'core/state/recently_viewed_controller.dart';
 import 'core/state/reward_controller.dart';
@@ -56,6 +57,7 @@ class ShivaniConstructionsApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => WishlistController()),
         ChangeNotifierProvider(create: (_) => RecentlyViewedController()),
         ChangeNotifierProvider(create: (_) => QuotationController()),
+        ChangeNotifierProvider(create: (_) => ProfileController()),
         ChangeNotifierProvider(
           create: (context) => RewardController(
             quotationController: context.read<QuotationController>(),

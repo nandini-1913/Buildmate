@@ -12,6 +12,10 @@ import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/catalog/data/mock/catalog_mock_data.dart';
 import '../../features/catalog/presentation/screens/brands_screen.dart';
 import '../../features/catalog/presentation/screens/cart_screen.dart';
+import '../../features/checkout/presentation/screens/add_address_screen.dart';
+import '../../features/checkout/presentation/screens/order_confirmation_screen.dart';
+import '../../features/checkout/presentation/screens/payment_screen.dart';
+import '../../features/checkout/presentation/screens/select_address_screen.dart';
 import '../../features/catalog/presentation/screens/category_browse_screen.dart';
 import '../../features/catalog/presentation/screens/material_calculator_screen.dart';
 import '../../features/catalog/presentation/screens/offers_screen.dart';
@@ -164,6 +168,20 @@ abstract final class AppRouter {
         );
       case AppRoutes.cart:
         return _slide(const CartScreen(), settings);
+      case AppRoutes.selectAddress:
+        return _slide(const SelectAddressScreen(), settings);
+      case AppRoutes.addAddress:
+        return _slide(const AddAddressScreen(), settings);
+      case AppRoutes.payment:
+        final args = settings.arguments;
+        if (args is! PaymentArgs) return _slide(const CartScreen(), settings);
+        return _slide(PaymentScreen(args: args), settings);
+      case AppRoutes.orderConfirmation:
+        final args = settings.arguments;
+        if (args is! OrderConfirmationArgs) {
+          return _slide(const CartScreen(), settings);
+        }
+        return _fade(OrderConfirmationScreen(order: args.order), settings);
       case AppRoutes.quotation:
       case AppRoutes.quotationReview:
         return _slide(const QuotationReviewScreen(), settings);
@@ -178,13 +196,9 @@ abstract final class AppRouter {
         );
       case AppRoutes.profile:
         return _slide(
-          Scaffold(
+          const Scaffold(
             backgroundColor: AppColors.background,
-            appBar: AppBar(
-              backgroundColor: AppColors.surface,
-              title: const Text('Profile'),
-            ),
-            body: const ProfileTabBody(),
+            body: ProfileTabBody(showBackButton: true),
           ),
           settings,
         );

@@ -1,3 +1,6 @@
+import '../../features/checkout/domain/models/address_models.dart';
+import '../../features/checkout/domain/models/order_models.dart';
+
 abstract final class AppRoutes {
   static const String splash = '/';
   static const String login = '/login';
@@ -26,6 +29,10 @@ abstract final class AppRoutes {
   static const String offers = '/offers';
   static const String offerDetail = '/offer-detail';
   static const String cart = '/cart';
+  static const String selectAddress = '/checkout/address';
+  static const String addAddress = '/checkout/address/new';
+  static const String payment = '/checkout/payment';
+  static const String orderConfirmation = '/checkout/confirmation';
   static const String quotation = '/quotation';
   static const String quotationReview = '/quotation-review';
   static const String wishlist = '/wishlist';
@@ -149,6 +156,21 @@ class UpvcPipeVariantsArgs {
 
   /// When set, limits variants to these category ids.
   final List<String>? categoryIds;
+}
+
+/// Arguments for [AppRoutes.payment].
+class PaymentArgs {
+  const PaymentArgs({required this.address, required this.delivery});
+
+  final DeliveryAddress address;
+  final DeliveryOption delivery;
+}
+
+/// Arguments for [AppRoutes.orderConfirmation].
+class OrderConfirmationArgs {
+  const OrderConfirmationArgs({required this.order});
+
+  final PlacedOrder order;
 }
 
 class BrandProductsArgs {

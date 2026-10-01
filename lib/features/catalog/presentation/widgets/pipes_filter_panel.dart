@@ -51,6 +51,31 @@ abstract final class PipeFilterBrands {
   ];
 }
 
+/// Class options per pipe Type (UPVC / PVC / CPVC price-list sheets).
+abstract final class PipeFilterClasses {
+  static const byType = {
+    'UPVC': ['Sch 40', 'Sch 80'],
+    'PVC': ['4 kg', '6 kg', '8 kg', '10 kg'],
+    'CPVC': ['SDR11', 'SDR13.5', 'Sch 40', 'Sch 80'],
+  };
+
+  /// Classes for [type], or every distinct class when [type] is null.
+  static List<String> forType(String? type) {
+    if (type != null) return byType[type] ?? const [];
+    final names = <String>[];
+    for (final classes in byType.values) {
+      for (final name in classes) {
+        if (!names.contains(name)) names.add(name);
+      }
+    }
+    return names;
+  }
+
+  /// Case- and space-insensitive match, so "4kg" equals "4 kg".
+  static bool matches(String a, String b) =>
+      a.replaceAll(' ', '').toLowerCase() == b.replaceAll(' ', '').toLowerCase();
+}
+
 /// Bottom filter area — sheet + tab bar matching the pipes module wireframe.
 class PipesFilterChrome extends StatelessWidget {
   const PipesFilterChrome({

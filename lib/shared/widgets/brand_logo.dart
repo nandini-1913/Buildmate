@@ -48,7 +48,12 @@ class BrandLogo extends StatelessWidget {
         child: Image.asset(
           logoAsset,
           fit: BoxFit.contain,
-          filterQuality: FilterQuality.medium,
+          // Medium (mipmapped) sampling emits a texture() LOD-bias shader
+          // that fails to compile under CanvasKit on some web GPUs; decode
+          // at display size instead so bilinear sampling stays crisp.
+          filterQuality: FilterQuality.low,
+          cacheWidth:
+              (size * 0.76 * MediaQuery.devicePixelRatioOf(context)).round(),
           errorBuilder: (context, error, stackTrace) => fallback,
         ),
       ),

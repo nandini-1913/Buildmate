@@ -1,5 +1,6 @@
 import 'package:customerapp/core/routes/app_routes.dart';
 import 'package:customerapp/core/state/cart_controller.dart';
+import 'package:customerapp/core/state/profile_controller.dart';
 import 'package:customerapp/core/state/quotation_controller.dart';
 import 'package:customerapp/core/state/recently_viewed_controller.dart';
 import 'package:customerapp/core/state/reward_controller.dart';
@@ -25,6 +26,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => WishlistController()),
         ChangeNotifierProvider(create: (_) => RecentlyViewedController()),
         ChangeNotifierProvider(create: (_) => QuotationController()),
+        ChangeNotifierProvider(create: (_) => ProfileController()),
         ChangeNotifierProvider(
           create: (context) => RewardController(
             quotationController: context.read<QuotationController>(),
