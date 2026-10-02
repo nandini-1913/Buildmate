@@ -65,28 +65,28 @@ class PanDetails {
   const PanDetails({
     required this.panNumber,
     required this.nameOnDocument,
-    required this.document,
-    required this.status,
+    this.document,
+    this.status,
   });
 
   final String panNumber;
   final String nameOnDocument;
-  final ProfileDocument document;
-  final VerificationStatus status;
+  final ProfileDocument? document;
+  final VerificationStatus? status;
 }
 
 class GstDetails {
   const GstDetails({
     required this.gstNumber,
     required this.nameOnDocument,
-    required this.document,
-    required this.status,
+    this.document,
+    this.status,
   });
 
   final String gstNumber;
   final String nameOnDocument;
-  final ProfileDocument document;
-  final VerificationStatus status;
+  final ProfileDocument? document;
+  final VerificationStatus? status;
 }
 
 class BankDetails {
@@ -94,16 +94,16 @@ class BankDetails {
     required this.accountNumber,
     required this.ifscCode,
     required this.nameOnAccount,
-    required this.document,
-    required this.status,
+    this.document,
+    this.status,
   });
 
   /// Stored masked (e.g. XXXXXXXX1234); only the last 4 digits are shown.
   final String accountNumber;
   final String ifscCode;
   final String nameOnAccount;
-  final ProfileDocument document;
-  final VerificationStatus status;
+  final ProfileDocument? document;
+  final VerificationStatus? status;
 }
 
 class ProfileDetails {

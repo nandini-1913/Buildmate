@@ -1,16 +1,18 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../../core/location/device_location.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../widgets/login_flow_widgets.dart';
 
 /// Step between signup and profession selection — lets the user drop a pin
-/// on a (mocked) map or use their current location.
+/// on the map or use their current location.
 class ChooseLocationScreen extends StatefulWidget {
   const ChooseLocationScreen({
     super.key,
@@ -29,22 +31,15 @@ class ChooseLocationScreen extends StatefulWidget {
   State<ChooseLocationScreen> createState() => _ChooseLocationScreenState();
 }
 
-class _MockPlace {
-  const _MockPlace(this.line1, this.line2);
-  final String line1;
-  final String line2;
-}
-
 class _ChooseLocationScreenState extends State<ChooseLocationScreen>
     with SingleTickerProviderStateMixin {
-  static const _mockPlace = _MockPlace(
-    '221B, Shivani Enclave, Sector 18',
-    'Noida, Uttar Pradesh — 201301',
-  );
-  static const _defaultCenter = LatLng(28.5710, 77.3260); // Sector 18, Noida
+  static const _location = DeviceLocation();
+  static const _defaultCenter = LatLng(28.5710, 77.3260);
 
   bool _locating = false;
   bool _located = false;
+  ResolvedPlace? _place;
+  int _resolveToken = 0;
   late final AnimationController _pinController;
   late final MapController _mapController;
 
@@ -56,6 +51,9 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
       duration: const Duration(milliseconds: 900),
     );
     _mapController = MapController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _useCurrentLocation();
+    });
   }
 
   @override
@@ -72,28 +70,91 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
     });
     _pinController.repeat(reverse: true);
 
-    await Future.delayed(const Duration(milliseconds: 1100));
-    if (!mounted) return;
+    try {
+      final point = await _location.currentPoint();
+      if (!mounted) return;
+      _moveMap(point);
+      await _showPlace(point);
+    } on LocationException catch (error) {
+      _stopLocating();
+      _showLocationError(error);
+    } on TimeoutException {
+      _stopLocating();
+      _showLocationError(
+        const LocationException('Could not get a GPS fix. Try again outdoors.'),
+      );
+    } catch (_) {
+      _stopLocating();
+      _showLocationError(
+        const LocationException('Could not read your current location.'),
+      );
+    }
+  }
 
+  Future<void> _onPinMoved(LatLng point) async {
+    await _showPlace(point);
+  }
+
+  Future<void> _showPlace(LatLng point) async {
+    final token = ++_resolveToken;
+    final place = await _location.describe(point);
+    if (!mounted || token != _resolveToken) return;
     _pinController
       ..stop()
       ..value = 0;
-    _mapController.move(_defaultCenter, 16);
     setState(() {
+      _place = place;
       _locating = false;
       _located = true;
     });
   }
 
+  void _stopLocating() {
+    if (!mounted) return;
+    _pinController
+      ..stop()
+      ..value = 0;
+    setState(() => _locating = false);
+  }
+
+  void _moveMap(LatLng point) {
+    try {
+      _mapController.move(point, 16);
+    } catch (_) {}
+  }
+
+  void _showLocationError(LocationException error) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(error.message),
+          behavior: SnackBarBehavior.floating,
+          action: error.openAppSettings
+              ? SnackBarAction(
+                  label: 'Settings',
+                  onPressed: DeviceLocation.openPermissionSettings,
+                )
+              : error.openLocationSettings
+              ? SnackBarAction(
+                  label: 'Settings',
+                  onPressed: DeviceLocation.openSystemLocationSettings,
+                )
+              : null,
+        ),
+      );
+  }
+
   void _continue() {
     if (widget.isLocationUpdate) {
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(_place?.singleLine);
       return;
     }
-    Navigator.of(context).pushNamed(
-      AppRoutes.chooseProfession,
-      arguments: widget.args,
-    );
+    Navigator.of(
+      context,
+    ).pushNamed(AppRoutes.chooseProfession, arguments: widget.args);
   }
 
   @override
@@ -111,18 +172,28 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
               children: [
                 FlutterMap(
                   mapController: _mapController,
-                  options: const MapOptions(
+                  options: MapOptions(
                     initialCenter: _defaultCenter,
                     initialZoom: 15,
-                    interactionOptions: InteractionOptions(
+                    interactionOptions: const InteractionOptions(
                       flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                     ),
+                    onMapEvent: (event) {
+                      if (event is! MapEventMoveEnd) return;
+                      if (event.source != MapEventSource.dragEnd &&
+                          event.source != MapEventSource.multiFingerEnd &&
+                          event.source !=
+                              MapEventSource.flingAnimationController) {
+                        return;
+                      }
+                      _onPinMoved(event.camera.center);
+                    },
                   ),
                   children: [
                     TileLayer(
                       urlTemplate:
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.shivani.customerapp',
+                      userAgentPackageName: 'com.buildmate.customerapp',
                     ),
                   ],
                 ),
@@ -207,9 +278,7 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
             ),
             decoration: const BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.vertical(
-                top: Radius.circular(24),
-              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               boxShadow: [
                 BoxShadow(
                   color: Color(0x14000000),
@@ -246,7 +315,7 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
                     _AddressCard(
                       located: _located,
                       locating: _locating,
-                      place: _mockPlace,
+                      place: _place,
                       onUseLocation: _useCurrentLocation,
                       onContinue: _continue,
                     ),
@@ -317,10 +386,7 @@ class _SearchField extends StatelessWidget {
           Expanded(
             child: Text(
               'Search area, street or landmark',
-              style: TextStyle(
-                color: AppColors.onSurfaceVariant,
-                fontSize: 15,
-              ),
+              style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 15),
             ),
           ),
         ],
@@ -437,7 +503,7 @@ class _AddressCard extends StatelessWidget {
 
   final bool located;
   final bool locating;
-  final _MockPlace place;
+  final ResolvedPlace? place;
   final VoidCallback onUseLocation;
   final VoidCallback onContinue;
 
@@ -446,135 +512,135 @@ class _AddressCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: located
-                ? Row(
-                    key: const ValueKey('located'),
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: LoginFlowColors.accentMuted,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.location_on_rounded,
-                          color: LoginFlowColors.accent,
-                          size: 20,
-                        ),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: located
+              ? Row(
+                  key: const ValueKey('located'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: LoginFlowColors.accentMuted,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(width: AppSpacing.space3),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'Current location',
-                                  style: theme.textTheme.labelMedium?.copyWith(
-                                    color: LoginFlowColors.accent,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                const Icon(
-                                  Icons.check_circle_rounded,
-                                  size: 14,
-                                  color: LoginFlowColors.accent,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              place.line1,
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            Text(
-                              place.line2,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
+                      child: const Icon(
+                        Icons.location_on_rounded,
+                        color: LoginFlowColors.accent,
+                        size: 20,
                       ),
-                    ],
-                  )
-                : InkWell(
-                    key: const ValueKey('cta'),
-                    onTap: onUseLocation,
-                    borderRadius: BorderRadius.circular(14),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: AppSpacing.space2,
-                      ),
-                      child: Row(
+                    ),
+                    const SizedBox(width: AppSpacing.space3),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: LoginFlowColors.accentMuted,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Center(
-                              child: locating
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: LoginFlowColors.accent,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.my_location_rounded,
-                                      color: LoginFlowColors.accent,
-                                      size: 18,
-                                    ),
+                          Row(
+                            children: [
+                              Text(
+                                'Current location',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: LoginFlowColors.accent,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              const Icon(
+                                Icons.check_circle_rounded,
+                                size: 14,
+                                color: LoginFlowColors.accent,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            place?.line1 ?? '',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(width: AppSpacing.space3),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  locating
-                                      ? 'Finding your location…'
-                                      : 'Use my current location',
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                Text(
-                                  'Or drag the pin to fine-tune it manually',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: AppColors.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
+                          Text(
+                            place?.line2 ?? '',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.onSurfaceVariant,
                             ),
                           ),
                         ],
                       ),
                     ),
+                  ],
+                )
+              : InkWell(
+                  key: const ValueKey('cta'),
+                  onTap: onUseLocation,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.space2,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: LoginFlowColors.accentMuted,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: locating
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: LoginFlowColors.accent,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.my_location_rounded,
+                                    color: LoginFlowColors.accent,
+                                    size: 18,
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.space3),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                locating
+                                    ? 'Finding your location…'
+                                    : 'Use my current location',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                'Or drag the pin to fine-tune it manually',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: AppColors.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-          ),
-          const SizedBox(height: AppSpacing.space4),
-          LoginFlowContinueButton(
-            label: 'Confirm & continue',
-            enabled: located,
-            onPressed: onContinue,
-          ),
+                ),
+        ),
+        const SizedBox(height: AppSpacing.space4),
+        LoginFlowContinueButton(
+          label: 'Confirm & continue',
+          enabled: located,
+          onPressed: onContinue,
+        ),
       ],
     );
   }

@@ -72,7 +72,7 @@ abstract final class CatalogApiMapper {
         if (item.productCode != null) 'SKU': item.productCode!,
         if (sizeLabel.isNotEmpty) 'Size': sizeLabel,
         if (item.length != null) 'Length': item.length!,
-        if (productGroup != null) 'Product Group': productGroup,
+        'Product Group': ?productGroup,
         'Type': scheduleType ?? typeName,
       },
       imageAsset: '',

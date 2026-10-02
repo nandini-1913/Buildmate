@@ -14,7 +14,7 @@ void main() {
     final sessionController = SessionController();
     await sessionController.restore();
     await tester.pumpWidget(
-      ShivaniConstructionsApp(sessionController: sessionController),
+      BuildMateApp(sessionController: sessionController),
     );
     await tester.pump();
 

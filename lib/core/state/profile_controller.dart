@@ -93,8 +93,8 @@ class ProfileController extends ChangeNotifier {
     notifyListeners();
   }
 
-  static void _assertEditable(VerificationStatus status) {
-    if (status.isLocked) {
+  static void _assertEditable(VerificationStatus? status) {
+    if (status?.isLocked == true) {
       throw StateError('Approved details cannot be changed.');
     }
   }

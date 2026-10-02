@@ -7,7 +7,6 @@ import '../../../../core/state/profile_controller.dart';
 import '../../../../core/state/reward_controller.dart';
 import '../../../../core/state/session_controller.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../catalog/domain/models/catalog_models.dart';
 import '../../domain/models/profile_models.dart';
@@ -76,7 +75,7 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
   }
 
   Future<void> _editPan(PanDetails pan) async {
-    if (pan.status.isLocked) return _showLocked('PAN details');
+    if (pan.status?.isLocked == true) return _showLocked('PAN details');
     final saved = await showPanEditSheet(context, pan);
     if (saved == null || !mounted) return;
     await context.read<ProfileController>().savePan(
@@ -88,7 +87,7 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
   }
 
   Future<void> _editGst(GstDetails gst) async {
-    if (gst.status.isLocked) return _showLocked('GST details');
+    if (gst.status?.isLocked == true) return _showLocked('GST details');
     final saved = await showGstEditSheet(context, gst);
     if (saved == null || !mounted) return;
     await context.read<ProfileController>().saveGst(
@@ -100,7 +99,7 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
   }
 
   Future<void> _editBank(BankDetails bank) async {
-    if (bank.status.isLocked) return _showLocked('Bank details');
+    if (bank.status?.isLocked == true) return _showLocked('Bank details');
     final saved = await showBankEditSheet(context, bank);
     if (saved == null || !mounted) return;
     await context.read<ProfileController>().saveBank(
@@ -115,9 +114,7 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<SessionController>().user;
-    final balance = context.watch<RewardController>().balance;
     final details = context.watch<ProfileController>().details;
-    final theme = Theme.of(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -192,10 +189,12 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
                         ),
                         ProfileDocumentRow(
                           document: details.pan.document,
-                          onView: () => showProfileDocument(
-                            context,
-                            details.pan.document,
-                          ),
+                          onView: details.pan.document == null
+                              ? null
+                              : () => showProfileDocument(
+                                    context,
+                                    details.pan.document!,
+                                  ),
                         ),
                       ],
                     ),
@@ -215,10 +214,12 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
                         ),
                         ProfileDocumentRow(
                           document: details.gst.document,
-                          onView: () => showProfileDocument(
-                            context,
-                            details.gst.document,
-                          ),
+                          onView: details.gst.document == null
+                              ? null
+                              : () => showProfileDocument(
+                                    context,
+                                    details.gst.document!,
+                                  ),
                         ),
                       ],
                     ),
@@ -242,39 +243,80 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
                         ),
                         ProfileDocumentRow(
                           document: details.bank.document,
-                          onView: () => showProfileDocument(
-                            context,
-                            details.bank.document,
-                          ),
+                          onView: details.bank.document == null
+                              ? null
+                              : () => showProfileDocument(
+                                    context,
+                                    details.bank.document!,
+                                  ),
                         ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.space2),
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        left: AppSpacing.space1,
-                        bottom: AppSpacing.space2,
-                      ),
-                      child: Text('Account', style: theme.textTheme.titleSmall),
-                    ),
-                    _ProfileTile(
-                      icon: Icons.stars_rounded,
-                      title: 'My Rewards',
-                      subtitle: '$balance points',
-                      onTap: () {
-                        Navigator.of(context).pushNamed(AppRoutes.myRewards);
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.space4),
+                    // Padding(
+                    //   padding: const EdgeInsets.only(
+                    //     left: AppSpacing.space1,
+                    //     bottom: AppSpacing.space2,
+                    //   ),
+                    //   child: Text('Account', style: theme.textTheme.titleSmall),
+                    // ),
+                    // _ProfileTile(
+                    //   icon: Icons.stars_rounded,
+                    //   title: 'My Rewards',
+                    //   subtitle: '$balance points',
+                    //   onTap: () {
+                    //     Navigator.of(context).pushNamed(AppRoutes.myRewards);
+                    //   },
+                    // ),
+                    // const SizedBox(height: AppSpacing.space4),
+
                     OutlinedButton.icon(
                       onPressed: () async {
-                        await context.read<SessionController>().logout();
-                        if (!context.mounted) return;
-                        Navigator.of(context).pushNamedAndRemoveUntil(
-                          AppRoutes.login,
-                          (_) => false,
+                     // Show confirmation dialog
+                    final shouldLogout = await showDialog<bool>(
+                      context: context,
+                      builder: (dialogContext) {
+                        return AlertDialog(
+                          title: const Text('Sign out'),
+                          content: const Text(
+                            'Are you sure you want to sign out?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(dialogContext).pop(false);},
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(onPressed: () {
+                              Navigator.of(dialogContext).pop(true);
+                              },
+                              child: const Text('Sign out'),
+                            ),
+                          ],
                         );
-                      },
+                        },
+                    );
+
+                    if (shouldLogout != true || !context.mounted) return;
+                    try {
+                      await context.read<SessionController>().logout();
+                      if (!context.mounted) return;
+                      Navigator.of(context, rootNavigator: true)
+                          .pushNamedAndRemoveUntil(
+                        AppRoutes.login,
+                        (route) => false,
+                      );
+                    } catch (e) {
+                      if (!context.mounted) return;
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Sign out failed: $e'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                    },
                       icon: const Icon(Icons.logout_rounded),
                       label: const Text('Sign out'),
                     ),
@@ -282,39 +324,6 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
                 ),
               ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfileTile extends StatelessWidget {
-  const _ProfileTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.space2),
-      child: Material(
-        color: AppColors.surface,
-        borderRadius: AppRadius.lgAll,
-        child: ListTile(
-          shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll),
-          leading: Icon(icon, color: AppColors.primary),
-          title: Text(title),
-          subtitle: Text(subtitle),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: onTap,
         ),
       ),
     );

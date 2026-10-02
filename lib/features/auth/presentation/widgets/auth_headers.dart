@@ -27,7 +27,7 @@ class AuthBrandHeader extends StatelessWidget {
               borderRadius: AppRadius.smAll,
             ),
             child: Image.asset(
-              'assets/images/branding/shivani_icon_mark.png',
+              AppConstants.appLogoAsset,
               fit: BoxFit.contain,
             ),
           ),

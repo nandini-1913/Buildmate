@@ -60,11 +60,7 @@ class FeaturedProductsSection extends StatelessWidget {
 }
 
 class FeaturedProductCard extends StatelessWidget {
-  const FeaturedProductCard({
-    super.key,
-    required this.product,
-    this.onTap,
-  });
+  const FeaturedProductCard({super.key, required this.product, this.onTap});
 
   final CatalogProduct product;
   final VoidCallback? onTap;
@@ -110,63 +106,78 @@ class FeaturedProductCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        brandName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        product.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        product.specSummary,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.caption(color: AppColors.outline),
-                      ),
-                      if (rating != null) ...[
-                        const SizedBox(height: AppSpacing.space1),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.star_rounded,
-                              size: 14,
-                              color: AppColors.secondary,
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.topLeft,
+                          child: SingleChildScrollView(
+                            physics: const NeverScrollableScrollPhysics(),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  brandName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                Text(
+                                  product.name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  product.specSummary,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTypography.caption(
+                                    color: AppColors.outline,
+                                  ),
+                                ),
+                                if (rating != null) ...[
+                                  const SizedBox(height: AppSpacing.space1),
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.star_rounded,
+                                        size: 14,
+                                        color: AppColors.secondary,
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        rating.toStringAsFixed(1),
+                                        style: AppTypography.caption(
+                                          color: AppColors.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                                const SizedBox(height: AppSpacing.space1),
+                                Text(
+                                  from == null
+                                      ? product.priceWithUnit
+                                      : '${from.priceLabel} / ${product.unit}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.space1),
+                                StockStatusChip(inStock: inStock),
+                              ],
                             ),
-                            const SizedBox(width: 2),
-                            Text(
-                              rating.toStringAsFixed(1),
-                              style: AppTypography.caption(
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: AppSpacing.space1),
-                      Text(
-                        from == null
-                            ? product.priceWithUnit
-                            : '${from.priceLabel} / ${product.unit}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.space1),
-                      StockStatusChip(inStock: inStock),
-                      const Spacer(),
                       ProductActionBar(product: product, compact: true),
                     ],
                   ),

@@ -9,10 +9,11 @@
 ///
 /// Android emulator → host machine: `http://10.0.2.2:8000`
 /// Physical device on same Wi‑Fi → `http://<laptop-lan-ip>:8000`
+///
 abstract final class ApiConfig {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://dashboard-1-phq2.onrender.com',
+    defaultValue: 'http://187.127.148.44',
   );
 
   static const String apiPrefix = '/api';

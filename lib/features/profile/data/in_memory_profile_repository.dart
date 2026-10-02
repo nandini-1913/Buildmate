@@ -1,15 +1,12 @@
 import '../../catalog/domain/models/catalog_models.dart';
 import '../domain/models/profile_models.dart';
 
-/// Mock profile store keyed by user id. Seeds each user with demo KYC data
-/// (PAN + Bank approved, GST pending) until a backend exists.
+/// Profile store keyed by user id. Stores and retrieves live user profile details.
 class InMemoryProfileRepository {
   final Map<String, ProfileDetails> _store = {};
 
-  static const _demoAddress = 'A-123, Sector 62, Noida, Uttar Pradesh - 201309';
-
   Future<ProfileDetails> fetch(AppUserProfile user) async {
-    return _store.putIfAbsent(user.id, () => _seed(user));
+    return _store.putIfAbsent(user.id, () => _createInitialProfile(user));
   }
 
   Future<ProfileDetails> save(String userId, ProfileDetails details) async {
@@ -17,39 +14,32 @@ class InMemoryProfileRepository {
     return details;
   }
 
-  static ProfileDetails _seed(AppUserProfile user) {
-    final uploaded = DateTime(2026, 3, 10);
+  static ProfileDetails _createInitialProfile(AppUserProfile user) {
     return ProfileDetails(
       personal: PersonalInfo(
         fullName: user.name,
         mobileNumber: user.phone ?? '',
         email: user.email ?? '',
-        address: _demoAddress,
+        address: '',
       ),
-      pan: PanDetails(
-        panNumber: 'ABCDE1234F',
-        nameOnDocument: user.name,
-        document: ProfileDocument(fileName: 'PAN_Card.pdf', uploadedOn: uploaded),
-        status: VerificationStatus.approved,
+      pan: const PanDetails(
+        panNumber: '',
+        nameOnDocument: '',
+        document: null,
+        status: null,
       ),
-      gst: GstDetails(
-        gstNumber: '09ABCDE1234F1Z5',
-        nameOnDocument: user.name,
-        document: ProfileDocument(
-          fileName: 'GST_Certificate.pdf',
-          uploadedOn: uploaded,
-        ),
-        status: VerificationStatus.pending,
+      gst: const GstDetails(
+        gstNumber: '',
+        nameOnDocument: '',
+        document: null,
+        status: null,
       ),
-      bank: BankDetails(
-        accountNumber: 'XXXXXXXX1234',
-        ifscCode: 'HDFC0001234',
-        nameOnAccount: user.name,
-        document: ProfileDocument(
-          fileName: 'Cancelled_Cheque.pdf',
-          uploadedOn: uploaded,
-        ),
-        status: VerificationStatus.approved,
+      bank: const BankDetails(
+        accountNumber: '',
+        ifscCode: '',
+        nameOnAccount: '',
+        document: null,
+        status: null,
       ),
     );
   }

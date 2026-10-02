@@ -70,68 +70,83 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               AppSpacing.space6,
               AppSpacing.space4,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                LoginFlowBackButton(
-                  onPressed: () => Navigator.of(context).maybePop(),
-                ),
-                const SizedBox(height: AppSpacing.space4),
-                const Center(
-                  child: LoginFlowIconBadge(
-                    icon: Icons.person_outline_rounded,
-                    size: 84,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          LoginFlowBackButton(
+                            onPressed: () => Navigator.of(context).maybePop(),
+                          ),
+                          const SizedBox(height: AppSpacing.space4),
+                          const Center(
+                            child: LoginFlowIconBadge(
+                              icon: Icons.person_outline_rounded,
+                              size: 84,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.space5),
+                          Text(
+                            'Create Your Account',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.space2),
+                          Text(
+                            'Just a couple of details to get you started',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.space8),
+                          LoginFlowOutlinedField(
+                            label: 'Full Name',
+                            controller: _nameController,
+                            hintText: 'Enter your full name',
+                            textCapitalization: TextCapitalization.words,
+                            prefixIcon: Icons.person_outline_rounded,
+                          ),
+                          const SizedBox(height: AppSpacing.space5),
+                          LoginFlowOutlinedField(
+                            label: 'Email Address',
+                            controller: _emailController,
+                            hintText: 'Enter your email address',
+                            keyboardType: TextInputType.emailAddress,
+                            prefixIcon: Icons.mail_outline_rounded,
+                          ),
+                          const SizedBox(height: AppSpacing.space5),
+                          LoginFlowOutlinedField(
+                            label: 'Referral Code (Optional)',
+                            controller: _referralController,
+                            hintText: 'Enter referral code, if you have one',
+                            textCapitalization: TextCapitalization.characters,
+                            prefixIcon: Icons.card_giftcard_rounded,
+                          ),
+                          const SizedBox(height: AppSpacing.space8),
+                          const Spacer(),
+                          LoginFlowContinueButton(
+                            label: 'Continue',
+                            onPressed: _continue,
+                          ),
+                          const SizedBox(height: AppSpacing.space5),
+                          const LoginFlowTermsFooter(),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.space5),
-                Text(
-                  'Create Your Account',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.space2),
-                Text(
-                  'Just a couple of details to get you started',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.space8),
-                LoginFlowOutlinedField(
-                  label: 'Full Name',
-                  controller: _nameController,
-                  hintText: 'Enter your full name',
-                  textCapitalization: TextCapitalization.words,
-                  prefixIcon: Icons.person_outline_rounded,
-                ),
-                const SizedBox(height: AppSpacing.space5),
-                LoginFlowOutlinedField(
-                  label: 'Email Address',
-                  controller: _emailController,
-                  hintText: 'Enter your email address',
-                  keyboardType: TextInputType.emailAddress,
-                  prefixIcon: Icons.mail_outline_rounded,
-                ),
-                const SizedBox(height: AppSpacing.space5),
-                LoginFlowOutlinedField(
-                  label: 'Referral Code (Optional)',
-                  controller: _referralController,
-                  hintText: 'Enter referral code, if you have one',
-                  textCapitalization: TextCapitalization.characters,
-                  prefixIcon: Icons.card_giftcard_rounded,
-                ),
-                const SizedBox(height: AppSpacing.space8),
-                const Spacer(),
-                LoginFlowContinueButton(
-                  label: 'Continue',
-                  onPressed: _continue,
-                ),
-                const SizedBox(height: AppSpacing.space5),
-                const LoginFlowTermsFooter(),
-              ],
+                );
+              },
             ),
           ),
         ),

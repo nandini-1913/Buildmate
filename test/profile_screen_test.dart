@@ -3,6 +3,8 @@ import 'package:customerapp/core/state/quotation_controller.dart';
 import 'package:customerapp/core/state/reward_controller.dart';
 import 'package:customerapp/core/state/session_controller.dart';
 import 'package:customerapp/core/theme/app_theme.dart';
+import 'package:customerapp/features/catalog/domain/models/catalog_models.dart';
+import 'package:customerapp/features/profile/data/in_memory_profile_repository.dart';
 import 'package:customerapp/features/profile/domain/models/profile_models.dart';
 import 'package:customerapp/features/profile/presentation/screens/profile_tab_body.dart';
 import 'package:flutter/material.dart';
@@ -13,16 +15,27 @@ import 'package:provider/provider.dart';
 void main() {
   setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
 
-  Future<ProfileController> pumpScreen(WidgetTester tester) async {
+  const testUser = AppUserProfile(
+    id: 'user-live-1',
+    name: 'Rishi Dev',
+    email: 'rishi.dev@example.com',
+    phone: '+91 98765 43210',
+  );
+
+  Future<ProfileController> pumpScreen(
+    WidgetTester tester, {
+    AppUserProfile user = testUser,
+  }) async {
     tester.view.physicalSize = const Size(430, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
+    final session = SessionController()..setUser(user);
     final profile = ProfileController();
     await tester.pumpWidget(
       MultiProvider(
         providers: [
-          ChangeNotifierProvider(create: (_) => SessionController()),
+          ChangeNotifierProvider.value(value: session),
           ChangeNotifierProvider(create: (_) => QuotationController()),
           ChangeNotifierProvider(
             create: (context) => RewardController(
@@ -41,7 +54,7 @@ void main() {
     return profile;
   }
 
-  testWidgets('shows personal info and KYC sections with statuses',
+  testWidgets('shows live personal info and KYC sections with clean state',
       (tester) async {
     await pumpScreen(tester);
 
@@ -50,16 +63,33 @@ void main() {
     expect(find.text('PAN Details'), findsOneWidget);
     expect(find.text('GST Details'), findsOneWidget);
     expect(find.text('Bank Details'), findsOneWidget);
-    expect(find.text('Rajesh Kumar'), findsWidgets);
+    expect(find.text('Rishi Dev'), findsWidgets);
+    expect(find.text('rishi.dev@example.com'), findsOneWidget);
+    expect(find.text('+91 98765 43210'), findsOneWidget);
     expect(find.text('Not Editable'), findsOneWidget);
-    expect(find.text('Approved'), findsNWidgets(2));
-    expect(find.text('Pending for Approval'), findsOneWidget);
-    expect(find.textContaining('pending for approval.'), findsOneWidget);
-    expect(find.text('Uploaded on 10 Mar 2026'), findsNWidgets(3));
   });
 
   testWidgets('approved section is locked', (tester) async {
-    await pumpScreen(tester);
+    final profile = await pumpScreen(tester);
+
+    final current = profile.details!;
+    final approvedProfile = current.copyWith(
+      pan: const PanDetails(
+        panNumber: 'ABCDE1234F',
+        nameOnDocument: 'Rishi Dev',
+        document: null,
+        status: VerificationStatus.approved,
+      ),
+    );
+    await profile.savePan(
+      panNumber: approvedProfile.pan.panNumber,
+      nameOnDocument: approvedProfile.pan.nameOnDocument,
+    );
+    // Directly save approved profile into repository for the test
+    final repo = InMemoryProfileRepository();
+    await repo.save(testUser.id, approvedProfile);
+    await profile.loadForUser(testUser);
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('PAN Details'));
     await tester.pumpAndSettle();
@@ -71,7 +101,7 @@ void main() {
     );
   });
 
-  testWidgets('editing a pending section validates and resubmits',
+  testWidgets('editing an unsubmitted section validates and submits for approval',
       (tester) async {
     final profile = await pumpScreen(tester);
 
@@ -87,6 +117,10 @@ void main() {
     await tester.enterText(
       find.widgetWithText(TextFormField, 'GST Number *'),
       '27aapfu0939f1zv',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Name on Document *'),
+      'Rishi Dev',
     );
     await tester.tap(find.text('Submit for Approval'));
     await tester.pumpAndSettle();

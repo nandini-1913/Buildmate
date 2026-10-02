@@ -13,11 +13,8 @@ import '../../features/catalog/domain/models/catalog_models.dart';
 
 /// Compact stock status chip used across catalog UIs.
 class StockStatusChip extends StatelessWidget {
-  const StockStatusChip({
-    super.key,
-    this.inStock,
-    this.status,
-  }) : assert(inStock != null || status != null);
+  const StockStatusChip({super.key, this.inStock, this.status})
+    : assert(inStock != null || status != null);
 
   final bool? inStock;
   final StockStatus? status;
@@ -55,10 +52,7 @@ class StockStatusChip extends StatelessWidget {
         color: background,
         borderRadius: AppRadius.pillAll,
       ),
-      child: Text(
-        label,
-        style: AppTypography.labelSmallMono(color: color),
-      ),
+      child: Text(label, style: AppTypography.labelSmallMono(color: color)),
     );
   }
 }
@@ -106,9 +100,9 @@ Future<ProductVariant?> showBrandPicker(
                   product.name,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.outline,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppColors.outline),
                 ),
                 const SizedBox(height: AppSpacing.space3),
                 Expanded(
@@ -190,11 +184,12 @@ class ProductActionBar extends StatelessWidget {
           IconButton(
             tooltip: 'Wishlist',
             onPressed: () => _toggleWishlist(context),
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(
-              width: AppSpacing.space8,
-              height: AppSpacing.space8,
+            style: IconButton.styleFrom(
+              minimumSize: const Size(AppSpacing.space8, AppSpacing.space8),
+              maximumSize: const Size(AppSpacing.space8, AppSpacing.space8),
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
             ),
             icon: Icon(
               inWishlist
@@ -266,7 +261,9 @@ class ProductActionBar extends StatelessWidget {
             onPressed: () => _getQuote(context),
             style: FilledButton.styleFrom(
               minimumSize: const Size(0, AppSpacing.space10),
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space3),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.space3,
+              ),
               visualDensity: VisualDensity.compact,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
@@ -298,11 +295,12 @@ class VariantActionBar extends StatelessWidget {
       children: [
         IconButton(
           onPressed: () => wishlist.toggle(variant),
-          visualDensity: VisualDensity.compact,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints.tightFor(
-            width: AppSpacing.space8,
-            height: AppSpacing.space8,
+          style: IconButton.styleFrom(
+            minimumSize: const Size(AppSpacing.space8, AppSpacing.space8),
+            maximumSize: const Size(AppSpacing.space8, AppSpacing.space8),
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
           ),
           icon: Icon(
             inWishlist ? Icons.favorite_rounded : Icons.favorite_border_rounded,
@@ -339,9 +337,13 @@ class VariantActionBar extends StatelessWidget {
                     }
                   : null,
               style: OutlinedButton.styleFrom(
-                minimumSize: Size(0, compact ? AppSpacing.space8 : AppSpacing.space10),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: AppSpacing.space2),
+                minimumSize: Size(
+                  0,
+                  compact ? AppSpacing.space8 : AppSpacing.space10,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.space2,
+                ),
                 visualDensity: VisualDensity.compact,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),

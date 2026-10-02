@@ -29,16 +29,20 @@ class PopularBrandsSection extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-          child: HomeSectionHeader(title: 'Popular Brands', onViewAll: onViewAll),
+          child: HomeSectionHeader(
+            title: 'Popular Brands',
+            onViewAll: onViewAll,
+          ),
         ),
         const SizedBox(height: AppSpacing.space3),
         SizedBox(
-          height: 128,
+          height: 140,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
             itemCount: brands.length,
-            separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.space3),
+            separatorBuilder: (_, _) =>
+                const SizedBox(width: AppSpacing.space3),
             itemBuilder: (context, index) {
               final brand = brands[index];
               return BrandCard(
@@ -66,7 +70,7 @@ class BrandCard extends StatelessWidget {
 
     return SizedBox(
       width: 112,
-      height: 128,
+      height: 140,
       child: Material(
         color: AppColors.surface,
         elevation: AppElevation.level1,
@@ -82,6 +86,7 @@ class BrandCard extends StatelessWidget {
             padding: const EdgeInsets.all(AppSpacing.space3),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 BrandLogo(
                   logoAsset: brand.logoAsset,

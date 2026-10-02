@@ -27,7 +27,10 @@ class CurrentOffersSection extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-          child: HomeSectionHeader(title: 'Current Offers', onViewAll: onViewAll),
+          child: HomeSectionHeader(
+            title: 'Current Offers',
+            onViewAll: onViewAll,
+          ),
         ),
         const SizedBox(height: AppSpacing.space3),
         SizedBox(
@@ -36,7 +39,8 @@ class CurrentOffersSection extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
             itemCount: offers.length,
-            separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.space3),
+            separatorBuilder: (_, _) =>
+                const SizedBox(width: AppSpacing.space3),
             itemBuilder: (context, index) {
               final offer = offers[index];
               return OfferCard(
@@ -78,55 +82,69 @@ class OfferCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.space2,
-                  vertical: AppSpacing.space1,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.secondaryContainer,
-                  borderRadius: AppRadius.pillAll,
-                ),
-                child: Text(
-                  offer.discountLabel,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: AppColors.secondary,
-                    fontWeight: FontWeight.w700,
+              Expanded(
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: SingleChildScrollView(
+                    physics: const NeverScrollableScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.space2,
+                            vertical: AppSpacing.space1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.secondaryContainer,
+                            borderRadius: AppRadius.pillAll,
+                          ),
+                          child: Text(
+                            offer.discountLabel,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: AppColors.secondary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.space2),
+                        Text(
+                          offer.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: AppSpacing.space1),
+                        Text(
+                          offer.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.space2),
-              Text(
-                offer.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall,
-              ),
-              const SizedBox(height: AppSpacing.space1),
-              Text(
-                offer.subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall,
-              ),
-              const Spacer(),
               Text(
                 offer.endsOn,
                 style: AppTypography.caption(color: AppColors.outline),
               ),
               const SizedBox(height: AppSpacing.space2),
               SizedBox(
-                height: AppSpacing.space8,
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: onExplore,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.secondary,
                     side: const BorderSide(color: AppColors.secondary),
+                    minimumSize: const Size(0, AppSpacing.space8),
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.space4,
+                      vertical: 0,
                     ),
-                    minimumSize: const Size(0, AppSpacing.space8),
+                    visualDensity: VisualDensity.compact,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     textStyle: theme.textTheme.labelMedium?.copyWith(
                       fontWeight: FontWeight.w700,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/state/cart_controller.dart';
 import '../../../../core/state/reward_controller.dart';
 import '../../../../core/state/session_controller.dart';
@@ -55,8 +56,8 @@ class _HomeAppBarState extends State<HomeAppBar> {
       elevation: 0,
       child: SafeArea(
         bottom: false,
-        child: SizedBox(
-          height: AppSpacing.space14,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: AppSpacing.space14),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
             child: Row(
@@ -65,9 +66,14 @@ class _HomeAppBarState extends State<HomeAppBar> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Image.asset(
-                        'assets/images/branding/shivani_icon_mark.png',
+                      SizedBox(
+                        width: AppSpacing.space6,
                         height: AppSpacing.space6,
+                        child: Image.asset(
+                          AppConstants.appLogoAsset,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        ),
                       ),
                       const SizedBox(width: AppSpacing.space2),
                       Flexible(
@@ -75,14 +81,14 @@ class _HomeAppBarState extends State<HomeAppBar> {
                           TextSpan(
                             children: [
                               TextSpan(
-                                text: 'Shivani',
+                                text: AppConstants.appNameLead,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   color: AppColors.primary,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
                               TextSpan(
-                                text: ' Constructions',
+                                text: AppConstants.appNameTail,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   color: AppColors.onSurface,
                                   fontWeight: FontWeight.w400,
@@ -105,10 +111,7 @@ class _HomeAppBarState extends State<HomeAppBar> {
                     backgroundColor: AppColors.secondary,
                     label: Text(
                       rewardPoints > 999 ? '999+' : '$rewardPoints',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Colors.white,
-                      ),
+                      style: const TextStyle(fontSize: 10, color: Colors.white),
                     ),
                     child: Icon(
                       Icons.stars_rounded,

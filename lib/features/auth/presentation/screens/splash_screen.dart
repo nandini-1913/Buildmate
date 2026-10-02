@@ -50,7 +50,7 @@ class _SplashScreenState extends State<SplashScreen> {
             children: [
               const Spacer(),
               Image.asset(
-                'assets/images/branding/shivani_logo.jpeg',
+                AppConstants.appLogoAsset,
                 width: 220,
                 fit: BoxFit.contain,
               ),

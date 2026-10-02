@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/location/device_location.dart';
 import '../../../../core/state/cart_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
@@ -29,10 +32,8 @@ enum _PincodeStatus { idle, loading, found, notFound }
 
 class _AddAddressScreenState extends State<AddAddressScreen> {
   static const double _maxContentWidth = 720;
-  static const _defaultCenter = LatLng(12.9716, 77.5946); // Bangalore
-
-  // Mocked GPS fix until a location plugin is added.
-  static const _gpsFix = LatLng(12.9166, 77.6101);
+  static const _location = DeviceLocation();
+  static const _defaultCenter = LatLng(12.9716, 77.5946);
 
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
@@ -99,29 +100,75 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     if (_locating) return;
     FocusScope.of(context).unfocus();
     setState(() => _locating = true);
-    await Future<void>.delayed(const Duration(milliseconds: 1100));
+
+    try {
+      final place = await _location.currentPlace();
+      if (!mounted) return;
+
+      setState(() {
+        _locating = false;
+        _pin = place.point;
+        if (place.area.isNotEmpty) _area.text = place.area;
+        if (place.city.isNotEmpty) _city.text = place.city;
+        if (place.state.isNotEmpty) _state.text = place.state;
+        if (place.pincode.isNotEmpty) {
+          _pincode.text = place.pincode;
+          _pinStatus = _PincodeStatus.found;
+        }
+        if (place.house.isNotEmpty && _house.text.trim().isEmpty) {
+          _house.text = place.house;
+        }
+      });
+      if (widget.showMapPreview) {
+        try {
+          _mapController.move(place.point, 16);
+        } catch (_) {}
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Location found. Add your house/flat number.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      if (_house.text.trim().isEmpty) _houseFocus.requestFocus();
+    } on LocationException catch (error) {
+      _showLocationError(error);
+    } on TimeoutException {
+      _showLocationError(
+        const LocationException('Could not get a GPS fix. Try again outdoors.'),
+      );
+    } catch (_) {
+      _showLocationError(
+        const LocationException('Could not read your current location.'),
+      );
+    }
+  }
+
+  void _showLocationError(LocationException error) {
     if (!mounted) return;
-
-    setState(() {
-      _locating = false;
-      _pin = _gpsFix;
-      _area.text = 'Bannerghatta Road, BTM Layout';
-      _pincode.text = '560076';
-      _city.text = 'Bangalore';
-      _state.text = 'Karnataka';
-      _pinStatus = _PincodeStatus.found;
-    });
-    if (widget.showMapPreview) _mapController.move(_gpsFix, 16);
-
+    setState(() => _locating = false);
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(
-          content: Text('Location found. Add your house/flat number.'),
+        SnackBar(
+          content: Text(error.message),
           behavior: SnackBarBehavior.floating,
+          action: error.openAppSettings
+              ? SnackBarAction(
+                  label: 'Settings',
+                  onPressed: DeviceLocation.openPermissionSettings,
+                )
+              : error.openLocationSettings
+              ? SnackBarAction(
+                  label: 'Settings',
+                  onPressed: DeviceLocation.openSystemLocationSettings,
+                )
+              : null,
         ),
       );
-    _houseFocus.requestFocus();
   }
 
   Future<void> _save() async {
@@ -845,7 +892,7 @@ class _MapPreview extends StatelessWidget {
                       TileLayer(
                         urlTemplate:
                             'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.shivani.customerapp',
+                        userAgentPackageName: 'com.buildmate.customerapp',
                       ),
                     ],
                   ),

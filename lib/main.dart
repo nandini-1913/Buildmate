@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import 'core/constants/app_constants.dart';
 import 'core/routes/app_router.dart';
 import 'core/routes/app_routes.dart';
 import 'core/state/catalog_controller.dart';
@@ -30,11 +31,11 @@ Future<void> main() async {
   final sessionController = SessionController();
   await sessionController.restore();
 
-  runApp(ShivaniConstructionsApp(sessionController: sessionController));
+  runApp(BuildMateApp(sessionController: sessionController));
 }
 
-class ShivaniConstructionsApp extends StatelessWidget {
-  const ShivaniConstructionsApp({
+class BuildMateApp extends StatelessWidget {
+  const BuildMateApp({
     super.key,
     required this.sessionController,
   });
@@ -66,7 +67,7 @@ class ShivaniConstructionsApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'Shivani Constructions',
+        title: AppConstants.appName,
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
         initialRoute: AppRoutes.splash,

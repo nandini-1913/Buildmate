@@ -1,5 +1,8 @@
 abstract final class AppConstants {
-  static const String appName = 'Shivani Constructions';
+  static const String appName = 'BuildMate 24x7';
+  static const String appNameLead = 'BuildMate';
+  static const String appNameTail = ' 24x7';
+  static const String appLogoAsset = 'assets/images/branding/AppLogo.png';
   static const String appVersion = 'v1.0.0';
   static const String taglinePrefix = 'Everything for Construction.';
   static const String taglineEmphasis = 'One Trusted Platform.';

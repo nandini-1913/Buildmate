@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/state/cart_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
@@ -58,9 +59,13 @@ class CheckoutStepHeader extends StatelessWidget {
                       )
                     else
                       const SizedBox(width: AppSpacing.space3),
-                    Image.asset(
-                      'assets/images/branding/shivani_icon_mark.png',
+                    SizedBox(
+                      width: AppSpacing.space6,
                       height: AppSpacing.space6,
+                      child: Image.asset(
+                        AppConstants.appLogoAsset,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                     const SizedBox(width: AppSpacing.space2),
                     Expanded(
@@ -68,14 +73,14 @@ class CheckoutStepHeader extends StatelessWidget {
                         TextSpan(
                           children: [
                             TextSpan(
-                              text: 'Shivani',
+                              text: AppConstants.appNameLead,
                               style: theme.textTheme.titleMedium?.copyWith(
                                 color: AppColors.primary,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                             TextSpan(
-                              text: ' Constructions',
+                              text: AppConstants.appNameTail,
                               style: theme.textTheme.titleMedium?.copyWith(
                                 color: AppColors.onSurface,
                                 fontWeight: FontWeight.w400,

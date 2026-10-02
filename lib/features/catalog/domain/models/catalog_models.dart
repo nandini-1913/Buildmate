@@ -1,4 +1,4 @@
-// Catalog domain models for Shivani Constructions marketplace.
+// Catalog domain models for the BuildMate 24x7 marketplace.
 // Designed for later backend swap without UI rewrites.
 //
 // Hierarchy (Excel = source of truth for categories/products):
@@ -37,10 +37,9 @@ class AppUserProfile {
   }
 
   static const demo = AppUserProfile(
-    id: 'user-demo-1',
-    name: 'Rajesh Kumar',
-    email: 'rajesh.kumar@example.com',
-    phone: '+91 98765 43210',
+    id: 'guest',
+    name: 'Guest User',
+    isGuest: true,
   );
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/location/device_location.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/recently_viewed_controller.dart';
 import '../../../../core/state/session_controller.dart';
@@ -30,8 +31,42 @@ class HomeDashboardScreen extends StatefulWidget {
 }
 
 class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
+  static const _location = DeviceLocation();
+  String _deliveryAddress = 'Finding your location…';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentLocation();
+  }
+
+  Future<void> _loadCurrentLocation() async {
+    try {
+      final place = await _location.currentPlace();
+      if (!mounted) return;
+      setState(() => _deliveryAddress = place.singleLine);
+    } catch (_) {
+      if (!mounted || _deliveryAddress != 'Finding your location…') return;
+      setState(() => _deliveryAddress = 'Tap to set your location');
+    }
+  }
+
   void _open(String route, {Object? arguments}) {
     Navigator.of(context).pushNamed(route, arguments: arguments);
+  }
+
+  Future<void> _changeDeliveryLocation() async {
+    final user = context.read<SessionController>().user;
+    final result = await Navigator.of(context).pushNamed(
+      AppRoutes.chooseLocation,
+      arguments: SignupFlowArgs(
+        mobileNumber: user.phone ?? '',
+        fullName: user.name,
+        isLocationUpdate: true,
+      ),
+    );
+    if (!mounted || result is! String || result.trim().isEmpty) return;
+    setState(() => _deliveryAddress = result.trim());
   }
 
   void _openProduct(CatalogProduct product) {
@@ -102,7 +137,9 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
             id: o.id,
             discountLabel: o.discountText,
             title: o.title,
-            subtitle: o.minimumOrder.isNotEmpty ? o.minimumOrder : o.description,
+            subtitle: o.minimumOrder.isNotEmpty
+                ? o.minimumOrder
+                : o.description,
             endsOn: o.validUntil,
             ctaLabel: 'Explore',
             routeName: AppRoutes.offerDetail,
@@ -148,15 +185,8 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                     ),
                     child: HomeLocationBar(
                       label: 'Home',
-                      address: 'B-14/15, Navprena CHS, Sector 8, Chembur',
-                      onTap: () => _open(
-                        AppRoutes.chooseLocation,
-                        arguments: SignupFlowArgs(
-                          mobileNumber: user.phone ?? '',
-                          fullName: user.name,
-                          isLocationUpdate: true,
-                        ),
-                      ),
+                      address: _deliveryAddress,
+                      onTap: _changeDeliveryLocation,
                     ),
                   ),
                   Padding(
@@ -194,8 +224,9 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                       onCategoryTap: (category) {
                         _open(
                           AppRoutes.categoryBrowse,
-                          arguments:
-                              CategoryBrowseArgs(categoryId: category.id),
+                          arguments: CategoryBrowseArgs(
+                            categoryId: category.id,
+                          ),
                         );
                       },
                     ),
@@ -206,8 +237,9 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                     products: CatalogMockData.featuredProducts,
                     onViewAll: () => _open(
                       AppRoutes.productList,
-                      arguments:
-                          const ProductListArgs(title: 'Featured Products'),
+                      arguments: const ProductListArgs(
+                        title: 'Featured Products',
+                      ),
                     ),
                     onProductTap: _openProduct,
                   ),
@@ -233,8 +265,9 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                       products: CatalogMockData.popularProducts,
                       onViewAll: () => _open(
                         AppRoutes.productList,
-                        arguments:
-                            const ProductListArgs(title: 'Popular Products'),
+                        arguments: const ProductListArgs(
+                          title: 'Popular Products',
+                        ),
                       ),
                       onProductTap: _openProduct,
                     ),
@@ -246,11 +279,11 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                     onViewAll: recentlyViewed.isEmpty
                         ? null
                         : () => _open(
-                              AppRoutes.productList,
-                              arguments: const ProductListArgs(
-                                title: 'Recently Viewed',
-                              ),
+                            AppRoutes.productList,
+                            arguments: const ProductListArgs(
+                              title: 'Recently Viewed',
                             ),
+                          ),
                     onTap: _openVariant,
                   ),
                   const SizedBox(height: AppSpacing.space5),

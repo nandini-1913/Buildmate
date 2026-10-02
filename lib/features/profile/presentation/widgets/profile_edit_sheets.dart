@@ -314,7 +314,7 @@ class _FormSheetState<T> extends State<_FormSheet<T>> {
                 _buildField(widget.fields[i], _controllers[i]),
                 const SizedBox(height: AppSpacing.space3),
               ],
-              if (_document != null) ...[
+              if (widget.requiresApproval) ...[
                 Text(
                   'Supporting Document',
                   style: theme.textTheme.labelMedium?.copyWith(
@@ -322,34 +322,44 @@ class _FormSheetState<T> extends State<_FormSheet<T>> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.space2),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.space3,
-                    AppSpacing.space2,
-                    AppSpacing.space1,
-                    AppSpacing.space2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceContainer,
-                    borderRadius: AppRadius.mdAll,
-                    border: Border.all(color: AppColors.divider),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: ProfileDocumentTile(
-                          document: _document!,
-                          onView: () => showProfileDocument(context, _document!),
+                if (_document != null)
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.space3,
+                      AppSpacing.space2,
+                      AppSpacing.space1,
+                      AppSpacing.space2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceContainer,
+                      borderRadius: AppRadius.mdAll,
+                      border: Border.all(color: AppColors.divider),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: ProfileDocumentTile(
+                            document: _document!,
+                            onView: () => showProfileDocument(context, _document!),
+                          ),
                         ),
-                      ),
-                      TextButton.icon(
-                        onPressed: _replaceDocument,
-                        icon: const Icon(Icons.file_upload_outlined, size: 18),
-                        label: const Text('Replace'),
-                      ),
-                    ],
+                        TextButton.icon(
+                          onPressed: _replaceDocument,
+                          icon: const Icon(Icons.file_upload_outlined, size: 18),
+                          label: const Text('Replace'),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: _replaceDocument,
+                      icon: const Icon(Icons.upload_file_rounded, size: 18),
+                      label: const Text('Upload Document (Optional)'),
+                    ),
                   ),
-                ),
                 const SizedBox(height: AppSpacing.space4),
               ],
               FilledButton(

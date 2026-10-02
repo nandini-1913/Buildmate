@@ -325,13 +325,14 @@ class ProfileInfoRow extends StatelessWidget {
 
 /// "Supporting Document" row: PDF icon, file name, upload date, view button.
 class ProfileDocumentRow extends StatelessWidget {
-  const ProfileDocumentRow({super.key, required this.document, this.onView});
+  const ProfileDocumentRow({super.key, this.document, this.onView});
 
-  final ProfileDocument document;
+  final ProfileDocument? document;
   final VoidCallback? onView;
 
   @override
   Widget build(BuildContext context) {
+    if (document == null) return const SizedBox.shrink();
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.space1 + 2),
@@ -346,7 +347,7 @@ class ProfileDocumentRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: ProfileDocumentTile(document: document, onView: onView),
+            child: ProfileDocumentTile(document: document!, onView: onView),
           ),
         ],
       ),

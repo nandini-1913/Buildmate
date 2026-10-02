@@ -114,7 +114,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 Text('Reset Password', style: theme.textTheme.headlineMedium),
                 const SizedBox(height: AppSpacing.space2),
                 Text(
-                  'Create a new password for your Shivani Constructions account.',
+                  'Create a new password for your BuildMate 24x7 account.',
                   style: theme.textTheme.bodyMedium,
                 ),
                 const SizedBox(height: AppSpacing.space8),

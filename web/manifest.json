@@ -1,11 +1,11 @@
 {
-    "name": "customerapp",
-    "short_name": "customerapp",
+    "name": "BuildMate 24x7",
+    "short_name": "BuildMate 24x7",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "BuildMate 24x7",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

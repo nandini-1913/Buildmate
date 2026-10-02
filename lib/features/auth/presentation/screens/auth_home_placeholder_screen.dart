@@ -76,7 +76,8 @@ class AuthHomePlaceholderScreen extends StatelessWidget {
                 onPressed: () async {
                   await context.read<SessionController>().logout();
                   if (!context.mounted) return;
-                  Navigator.of(context).pushNamedAndRemoveUntil(
+                  Navigator.of(context, rootNavigator: true)
+                      .pushNamedAndRemoveUntil(
                     AppRoutes.login,
                     (_) => false,
                   );
