@@ -1,5 +1,9 @@
 allprojects {
     repositories {
+        // Local Flutter engine artifacts (avoids broken JVM SSL to storage.googleapis.com).
+        maven {
+            url = uri("${rootDir}/flutter-maven")
+        }
         google()
         mavenCentral()
     }

@@ -8,7 +8,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/category_image.dart';
-import '../../data/mock/catalog_mock_data.dart';
+import '../../data/catalog_assets.dart';
+import '../../data/pipe_schedule_util.dart';
 import '../../data/mock/upvc_pipe_matrix_data.dart';
 import '../../domain/models/catalog_models.dart';
 import '../widgets/pipes_filter_panel.dart';
@@ -260,8 +261,8 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
     ..sort((a, b) => _brandName(a, catalog).compareTo(_brandName(b, catalog)));
 
   String _typeLabel(ProductVariant variant) =>
-      CatalogMockData.normalizePipeSchedule(variant.pipeType) ??
-      CatalogMockData.normalizePipeSchedule(variant.specifications['Type']) ??
+      PipeScheduleUtil.normalizePipeSchedule(variant.pipeType) ??
+      PipeScheduleUtil.normalizePipeSchedule(variant.specifications['Type']) ??
       '';
 
   List<String> _typeOptions(List<ProductVariant> all) => all
@@ -443,7 +444,7 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
         _CarouselSlide(
           imageAsset: variant?.imageAsset.isNotEmpty == true
               ? variant!.imageAsset
-              : CatalogMockData.pipeSummaryImageAsset,
+              : CatalogAssets.pipeSummary,
           imageUrl: variant?.imageUrl,
         ),
       );
@@ -544,8 +545,8 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
     final selectionPool = _selectionPool(all);
     final sizeOptions = _availableSizes(selectionPool, forType: _pipeType);
     final typeOptions = _availableTypes(selectionPool, forSize: _size);
-    final productName = variant?.productName ??
-        CatalogMockData.pipeConfiguratorScreenTitle(widget.subCategoryId);
+    final productName =
+        variant?.productName ?? widget.title ?? 'Pipe configurator';
     final selectedSize = _size ?? variant?.specifications['Size'];
     final selectedType = _pipeType ?? (variant == null ? null : _typeLabel(variant));
     final price = variant?.sellingPrice ?? variant?.price;
@@ -557,7 +558,10 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
         children: [
           _PipeConfiguratorHeader(
             onBack: () => Navigator.of(context).maybePop(),
-            onSearch: () => Navigator.of(context).pushNamed(AppRoutes.search),
+            onSearch: () => Navigator.of(context).pushNamed(
+              AppRoutes.search,
+              arguments: const SearchArgs(),
+            ),
           ),
           Expanded(
             child: Stack(
@@ -660,6 +664,7 @@ class _UpvcPipeVariantListScreenState extends State<UpvcPipeVariantListScreen> {
             sort: _sort,
             selectedSize: _size,
             selectedBrand: _selectedBrand,
+            availableBrands: PipeFilterBrands.fromVariants(all),
             onSortChanged: (value) => setState(() => _sort = value),
             onSizeChanged: _onSizeFilterChanged,
             onBrandChanged: _onBrandFilterChanged,
@@ -723,33 +728,46 @@ class _PipeConfiguratorHeader extends StatelessWidget {
                     borderRadius: AppRadius.mdAll,
                     side: const BorderSide(color: AppColors.outlineVariant),
                   ),
-                  child: InkWell(
-                    onTap: onSearch,
-                    borderRadius: AppRadius.mdAll,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.space3,
-                        vertical: AppSpacing.space2,
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.search_rounded,
-                            size: 20,
-                            color: AppColors.outline,
-                          ),
-                          const SizedBox(width: AppSpacing.space2),
-                          Expanded(
-                            child: Text(
-                              'Search products',
-                              style: Theme.of(context)
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.space3,
+                      vertical: AppSpacing.space1,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.search_rounded,
+                          size: 20,
+                          color: AppColors.outline,
+                        ),
+                        const SizedBox(width: AppSpacing.space2),
+                        Expanded(
+                          child: TextField(
+                            textInputAction: TextInputAction.search,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              filled: false,
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              hintText: 'Search products',
+                              hintStyle: Theme.of(context)
                                   .textTheme
                                   .bodyMedium
                                   ?.copyWith(color: AppColors.outline),
+                              contentPadding: EdgeInsets.zero,
                             ),
+                            onTap: onSearch,
+                            onSubmitted: (query) {
+                              Navigator.of(context).pushNamed(
+                                AppRoutes.search,
+                                arguments: SearchArgs(initialQuery: query),
+                              );
+                            },
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

@@ -1,7 +1,7 @@
 import '../domain/models/auth_models.dart';
 
 /// Abstraction for authentication operations.
-/// Swap [MockAuthService] with a real API/Firebase implementation later.
+/// Phone OTP uses [PhoneAuthService] in `lib/services/auth_service.dart`.
 abstract class AuthService {
   Future<AuthResult> signInWithEmail({
     required String email,

@@ -2,31 +2,52 @@ import 'package:flutter/foundation.dart';
 
 import '../../features/auth/domain/models/auth_models.dart';
 import '../../features/catalog/domain/models/catalog_models.dart';
+import '../../services/auth_service.dart';
+import '../firebase/firebase_bootstrap.dart';
 import '../services/session_storage.dart';
 
-/// Holds the currently logged-in / demo user with local persistence.
+/// Holds the currently logged-in user with local persistence.
 class SessionController extends ChangeNotifier {
-  AppUserProfile _user = AppUserProfile.demo;
+  AppUserProfile _user = AppUserProfile.empty;
   bool _isLoggedIn = false;
   bool _restored = false;
+  Future<void>? _restoreOperation;
 
   AppUserProfile get user => _user;
   bool get isLoggedIn => _isLoggedIn;
   bool get isRestored => _restored;
 
   /// Load saved session from device storage (call once on app start).
-  Future<void> restore() async {
-    final saved = await SessionStorage.load();
-    if (saved != null && saved.id.isNotEmpty) {
-      _user = saved;
-      _isLoggedIn = true;
-    }
-    _restored = true;
-    notifyListeners();
+  Future<void> restore() {
+    return _restoreOperation ??= _restore();
   }
 
-  void setUser(AppUserProfile user) {
+  Future<void> _restore() async {
+    try {
+      final saved = await SessionStorage.load();
+      if (saved != null && saved.id.isNotEmpty) {
+        _user = saved;
+        _isLoggedIn = true;
+      } else {
+        _user = AppUserProfile.empty;
+        _isLoggedIn = false;
+      }
+    } catch (e, st) {
+      _user = AppUserProfile.empty;
+      _isLoggedIn = false;
+      debugPrint('Session restore failed; continuing signed out: $e');
+      debugPrint('$st');
+    } finally {
+      _restored = true;
+      notifyListeners();
+    }
+  }
+
+  Future<void> setUser(AppUserProfile user) async {
     _user = user;
+    if (_isLoggedIn && user.id.isNotEmpty) {
+      await SessionStorage.save(_user);
+    }
     notifyListeners();
   }
 
@@ -37,7 +58,7 @@ class SessionController extends ChangeNotifier {
             ? 'Guest'
             : (authUser.email.isNotEmpty
                 ? authUser.email.split('@').first
-                : AppUserProfile.demo.name));
+                : 'User'));
     _user = AppUserProfile(
       id: authUser.id,
       name: name,
@@ -52,14 +73,24 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    if (FirebaseBootstrap.isReady) {
+      await PhoneAuthService.instance.signOut();
+    }
     await SessionStorage.clear();
-    _user = AppUserProfile.demo;
+    _user = AppUserProfile.empty;
     _isLoggedIn = false;
     notifyListeners();
   }
 
-  void resetToDemo() {
-    _user = AppUserProfile.demo;
-    notifyListeners();
+  /// Restores profile from an active Firebase session after cold start.
+  Future<void> syncFromFirebase() async {
+    if (!FirebaseBootstrap.isReady) return;
+    try {
+      final authUser = await PhoneAuthService.instance.currentAuthUser();
+      if (authUser == null || authUser.isGuest) return;
+      await setFromAuth(authUser);
+    } catch (e) {
+      debugPrint('syncFromFirebase skipped: $e');
+    }
   }
 }

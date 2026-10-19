@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../catalog/domain/models/catalog_models.dart';
+import '../../../checkout/domain/models/order_models.dart';
 import '../../domain/models/profile_models.dart';
 
 const _months = [
@@ -476,6 +478,250 @@ class NotEditableChip extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Expandable order history block shown above the Account section on profile.
+class ProfileOrderHistorySection extends StatefulWidget {
+  const ProfileOrderHistorySection({super.key, required this.orders});
+
+  final List<PlacedOrder> orders;
+
+  @override
+  State<ProfileOrderHistorySection> createState() =>
+      _ProfileOrderHistorySectionState();
+}
+
+class _ProfileOrderHistorySectionState extends State<ProfileOrderHistorySection> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final orders = widget.orders;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.space3),
+      child: Material(
+        color: AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.lgAll,
+          side: const BorderSide(color: AppColors.divider),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.space4),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryContainer,
+                        borderRadius: AppRadius.smAll,
+                      ),
+                      child: const Icon(
+                        Icons.receipt_long_rounded,
+                        size: 20,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.space3),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Order History',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (orders.isEmpty)
+                            Text(
+                              'No previous orders',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppColors.onSurfaceVariant,
+                              ),
+                            )
+                          else
+                            Text(
+                              '${orders.length} ${orders.length == 1 ? 'order' : 'orders'}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppColors.onSurfaceVariant,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.primary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_expanded) ...[
+              const Divider(height: 1),
+              if (orders.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.space4),
+                  child: Text(
+                    'When you place an order, it will appear here.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                )
+              else
+                for (var i = 0; i < orders.length; i++)
+                  _OrderHistoryEntry(
+                    order: orders[i],
+                    showDivider: i < orders.length - 1,
+                  ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OrderHistoryEntry extends StatefulWidget {
+  const _OrderHistoryEntry({
+    required this.order,
+    required this.showDivider,
+  });
+
+  final PlacedOrder order;
+  final bool showDivider;
+
+  @override
+  State<_OrderHistoryEntry> createState() => _OrderHistoryEntryState();
+}
+
+class _OrderHistoryEntryState extends State<_OrderHistoryEntry> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final order = widget.order;
+
+    return Column(
+      children: [
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.space4,
+              AppSpacing.space3,
+              AppSpacing.space4,
+              AppSpacing.space3,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        order.orderId,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${formatProfileDate(order.placedAt)} · '
+                        '${order.itemCount} ${order.itemCount == 1 ? 'item' : 'items'}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  formatInr(order.total),
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.space1),
+                Icon(
+                  _expanded
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
+                  size: 22,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_expanded)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.space4,
+              0,
+              AppSpacing.space4,
+              AppSpacing.space3,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ProfileInfoRow(
+                  label: 'Payment',
+                  value: order.paymentStatus,
+                ),
+                ProfileInfoRow(
+                  label: 'Delivery',
+                  value: order.delivery.label,
+                ),
+                const SizedBox(height: AppSpacing.space1),
+                Text(
+                  'Items',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                for (final line in order.lines)
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.space2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${line.name} × ${line.quantity}',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ),
+                        Text(
+                          formatInr(line.total),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        if (widget.showDivider)
+          const Divider(height: 1, indent: 16, endIndent: 16),
+      ],
     );
   }
 }

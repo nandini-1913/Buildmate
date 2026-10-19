@@ -10,11 +10,16 @@ class ApiCatalogProduct {
     this.productName,
     this.type,
     this.productGroup,
+    this.productClass,
+    this.subcategory,
+    this.subcategoryId,
     this.brand,
     this.brandId,
+    this.size,
     this.sizeMm,
     this.sizeInch,
     this.length,
+    this.stdPkg,
     this.mrp,
     this.sellingPrice,
     this.discount,
@@ -33,11 +38,16 @@ class ApiCatalogProduct {
   final String? productName;
   final String? type;
   final String? productGroup;
+  final String? productClass;
+  final String? subcategory;
+  final String? subcategoryId;
   final String? brand;
   final String? brandId;
+  final String? size;
   final double? sizeMm;
   final String? sizeInch;
   final String? length;
+  final String? stdPkg;
   final double? mrp;
   final double? sellingPrice;
   final double? discount;
@@ -57,16 +67,21 @@ class ApiCatalogProduct {
       productName: _nullableString(json['productName']),
       type: _nullableString(json['type']),
       productGroup: _nullableString(json['productGroup']),
+      productClass: _nullableString(json['productClass']),
+      subcategory: _nullableString(json['subcategory']),
+      subcategoryId: _nullableString(json['subcategoryId']),
       brand: _nullableString(json['brand']),
       brandId: _nullableString(json['brandId']),
+      size: _nullableString(json['size']),
       sizeMm: _toDouble(json['sizeMm']),
       sizeInch: _nullableString(json['sizeInch']),
       length: _nullableString(json['length']),
+      stdPkg: _nullableString(json['stdPkg']),
       mrp: _toDouble(json['mrp']),
       sellingPrice: _toDouble(json['sellingPrice']),
       discount: _toDouble(json['discount']),
       stock: _toDouble(json['stock']),
-      imageUrl: _nullableString(json['imageUrl']),
+      imageUrl: _nullableString(json['imageUrl'] ?? json['image_url']),
       isActive: json['isActive'] != false,
       updatedAt: _nullableString(json['updatedAt']),
     );
@@ -80,7 +95,10 @@ class ApiCatalogProduct {
         category,
         type ?? '',
         productGroup ?? '',
+        productClass ?? '',
+        subcategory ?? '',
         brand ?? '',
+        size ?? '',
         sizeMm?.toString() ?? '',
         mrp?.toString() ?? '',
         sellingPrice?.toString() ?? '',

@@ -3,17 +3,27 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/location/device_location.dart';
 import '../../../../core/routes/app_routes.dart';
+<<<<<<< Updated upstream
+=======
+import '../../../../core/state/catalog_controller.dart';
+import '../../../../core/state/location_controller.dart';
+>>>>>>> Stashed changes
 import '../../../../core/state/recently_viewed_controller.dart';
 import '../../../../core/state/session_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../catalog/data/mock/catalog_mock_data.dart';
 import '../../../catalog/domain/models/catalog_models.dart';
+<<<<<<< Updated upstream
 import '../widgets/construction_tools_section.dart';
+=======
+import '../../data/mock/home_mock_data.dart';
+>>>>>>> Stashed changes
 import '../widgets/current_offers_section.dart';
+import '../widgets/featured_banner_carousel.dart';
 import '../widgets/featured_products_section.dart';
 import '../widgets/home_app_bar.dart';
 import '../widgets/home_category_card.dart';
+import '../widgets/home_dashboard_categories.dart';
 import '../widgets/home_location_bar.dart';
 import '../widgets/home_search_bar.dart';
 import '../widgets/popular_brands_section.dart';
@@ -31,6 +41,7 @@ class HomeDashboardScreen extends StatefulWidget {
 }
 
 class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
+<<<<<<< Updated upstream
   static const _location = DeviceLocation();
   String _deliveryAddress = 'Finding your location…';
 
@@ -74,6 +85,27 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       AppRoutes.productDetail,
       arguments: ProductDetailArgs(productId: product.id),
     );
+=======
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final location = context.read<LocationController>();
+      if (!location.hasFix && !location.isLoading) {
+        location.fetchCurrentLocation();
+      }
+      final catalog = context.read<CatalogController>();
+      catalog.refreshHomeCatalog(
+        showLoading: catalog.homeCategories.isEmpty &&
+            catalog.pipeVariants.isEmpty,
+      );
+    });
+  }
+
+  void _open(String route, {Object? arguments}) {
+    Navigator.of(context).pushNamed(route, arguments: arguments);
+>>>>>>> Stashed changes
   }
 
   void _openVariant(ProductVariant variant) {
@@ -90,6 +122,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   Widget build(BuildContext context) {
     final user = context.watch<SessionController>().user;
     final recentlyViewed = context.watch<RecentlyViewedController>().items;
+<<<<<<< Updated upstream
 
     final quickActions = CatalogMockData.quickActions
         .map(
@@ -117,8 +150,16 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
           ),
         )
         .toList();
+=======
+    final location = context.watch<LocationController>();
+    final catalog = context.watch<CatalogController>();
 
-    final brands = CatalogMockData.brands
+    final categories =
+        HomeDashboardCategories.forDashboard(catalog.homeCategories);
+>>>>>>> Stashed changes
+
+    final brands = catalog.catalogBrands
+        .take(8)
         .map(
           (b) => legacy.HomeBrand(
             id: b.id,
@@ -131,15 +172,20 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         )
         .toList();
 
-    final offers = CatalogMockData.offers
+    final offers = catalog.catalogOffers
+        .take(6)
         .map(
           (o) => legacy.HomeOffer(
             id: o.id,
             discountLabel: o.discountText,
             title: o.title,
+<<<<<<< Updated upstream
             subtitle: o.minimumOrder.isNotEmpty
                 ? o.minimumOrder
                 : o.description,
+=======
+            subtitle: o.description,
+>>>>>>> Stashed changes
             endsOn: o.validUntil,
             ctaLabel: 'Explore',
             routeName: AppRoutes.offerDetail,
@@ -147,6 +193,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         )
         .toList();
 
+<<<<<<< Updated upstream
     final tools = CatalogMockData.tools
         .map(
           (t) => legacy.ConstructionTool(
@@ -158,6 +205,11 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
           ),
         )
         .toList();
+=======
+    final featured = catalog.featuredVariants;
+    final popular = catalog.popularVariants;
+    final homeLoading = catalog.isHomeLoading;
+>>>>>>> Stashed changes
 
     return ColoredBox(
       color: AppColors.background,
@@ -172,6 +224,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
             onCart: () => _open(AppRoutes.cart),
           ),
           Expanded(
+<<<<<<< Updated upstream
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -187,20 +240,74 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                       label: 'Home',
                       address: _deliveryAddress,
                       onTap: _changeDeliveryLocation,
+=======
+            child: RefreshIndicator(
+              onRefresh: () =>
+                  context.read<CatalogController>().refreshHomeCatalog(),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.space4,
+                        AppSpacing.space3,
+                        AppSpacing.space4,
+                        0,
+                      ),
+                      child: HomeLocationBar(
+                        label: location.hasFix ? 'Home' : 'Location',
+                        address: location.fullAddress,
+                        isLoading: location.isLoading && !location.hasFix,
+                        onTap: () {
+                          if (!location.hasFix &&
+                              location.error != null &&
+                              !location.isLoading) {
+                            location.fetchCurrentLocation();
+                            return;
+                          }
+                          _open(
+                            AppRoutes.chooseLocation,
+                            arguments: SignupFlowArgs(
+                              mobileNumber: user.phone ?? '',
+                              fullName: user.name,
+                              isLocationUpdate: true,
+                            ),
+                          );
+                        },
+                      ),
+>>>>>>> Stashed changes
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.space4,
-                      AppSpacing.space3,
-                      AppSpacing.space4,
-                      0,
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.space4,
+                        AppSpacing.space3,
+                        AppSpacing.space4,
+                        0,
+                      ),
+                      child: HomeSearchBar(
+                        onSearch: (query) => _open(
+                          AppRoutes.search,
+                          arguments: SearchArgs(initialQuery: query),
+                        ),
+                        onVoice: () => _open(AppRoutes.search),
+                        onScan: () => _open(AppRoutes.search),
+                      ),
                     ),
-                    child: HomeSearchBar(
-                      onTap: () => _open(AppRoutes.search),
-                      onVoice: () => _open(AppRoutes.search),
-                      onScan: () => _open(AppRoutes.search),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.space4,
+                        AppSpacing.space3,
+                        AppSpacing.space4,
+                        0,
+                      ),
+                      child: FeaturedBannerCarousel(
+                        banners: HomeMockData.banners,
+                        onCta: (banner) => _open(banner.routeName),
+                      ),
                     ),
+<<<<<<< Updated upstream
                   ),
                   const SizedBox(height: AppSpacing.space4),
                   Padding(
@@ -217,12 +324,62 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.space4,
+=======
+                    const SizedBox(height: AppSpacing.space5),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.space4,
+                      ),
+                      child: homeLoading && categories.isEmpty
+                          ? const SizedBox(
+                              height: 120,
+                              child: Center(
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : categories.isEmpty
+                              ? const Text(
+                                  'No categories from server yet.',
+                                  style: TextStyle(
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
+                                )
+                              : CategoriesSection(
+                                  categories: categories,
+                                  onCategoryTap: (category) {
+                                    _open(
+                                      AppRoutes.categoryBrowse,
+                                      arguments: CategoryBrowseArgs(
+                                        categoryId: category.id,
+                                        categoryName: category.name,
+                                      ),
+                                    );
+                                  },
+                                ),
+>>>>>>> Stashed changes
                     ),
-                    child: CategoriesSection(
-                      categories: categories,
-                      onViewAll: () => _open(AppRoutes.categories),
-                      onCategoryTap: (category) {
+                    const SizedBox(height: AppSpacing.space5),
+                    const _SectionDivider(),
+                    FeaturedProductsSection(
+                      variants: featured,
+                      isLoading: homeLoading,
+                      onViewAll: () => _open(
+                        AppRoutes.productList,
+                        arguments: const ProductListArgs(
+                          title: 'Featured Products',
+                        ),
+                      ),
+                      onVariantTap: _openVariant,
+                    ),
+                    const SizedBox(height: AppSpacing.space5),
+                    const _SectionDivider(),
+                    PopularBrandsSection(
+                      brands: brands,
+                      onViewAll: () => _open(AppRoutes.brands),
+                      onBrandTap: (brand) {
                         _open(
+<<<<<<< Updated upstream
                           AppRoutes.categoryBrowse,
                           arguments: CategoryBrowseArgs(
                             categoryId: category.id,
@@ -268,9 +425,32 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                         arguments: const ProductListArgs(
                           title: 'Popular Products',
                         ),
-                      ),
-                      onProductTap: _openProduct,
+=======
+                          AppRoutes.brandProducts,
+                          arguments: BrandProductsArgs(brandId: brand.id),
+                        );
+                      },
                     ),
+                    const SizedBox(height: AppSpacing.space5),
+                    const _SectionDivider(),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.space4,
+                      ),
+                      child: PopularProductsSection(
+                        variants: popular,
+                        isLoading: homeLoading,
+                        onViewAll: () => _open(
+                          AppRoutes.productList,
+                          arguments: const ProductListArgs(
+                            title: 'Popular Products',
+                          ),
+                        ),
+                        onVariantTap: _openVariant,
+>>>>>>> Stashed changes
+                      ),
+                    ),
+<<<<<<< Updated upstream
                   ),
                   const SizedBox(height: AppSpacing.space5),
                   const _SectionDivider(),
@@ -314,6 +494,39 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                     height: AppSpacing.space16 + AppSpacing.space12,
                   ),
                 ],
+=======
+                    const SizedBox(height: AppSpacing.space5),
+                    const _SectionDivider(),
+                    RecentlyViewedSection(
+                      products: recentlyViewed,
+                      onViewAll: recentlyViewed.isEmpty
+                          ? null
+                          : () => _open(
+                                AppRoutes.productList,
+                                arguments: const ProductListArgs(
+                                  title: 'Recently Viewed',
+                                ),
+                              ),
+                      onTap: _openVariant,
+                    ),
+                    const SizedBox(height: AppSpacing.space5),
+                    const _SectionDivider(),
+                    CurrentOffersSection(
+                      offers: offers,
+                      onViewAll: () => _open(AppRoutes.offers),
+                      onExplore: (offer) {
+                        _open(
+                          AppRoutes.offerDetail,
+                          arguments: OfferDetailArgs(offerId: offer.id),
+                        );
+                      },
+                    ),
+                    const SizedBox(
+                      height: AppSpacing.space16 + AppSpacing.space12,
+                    ),
+                  ],
+                ),
+>>>>>>> Stashed changes
               ),
             ),
           ),

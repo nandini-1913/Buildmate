@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../features/catalog/data/mappers/catalog_api_mapper.dart';
 import 'app_icons.dart';
 
 /// Local category product image with graceful icon fallback.
@@ -51,8 +52,8 @@ class CategoryImage extends StatelessWidget {
       );
     }
 
-    final remote = imageUrl?.trim();
-    if (remote != null && remote.isNotEmpty && _isNetworkUrl(remote)) {
+    final remote = CatalogApiMapper.resolveImageUrl(imageUrl);
+    if (remote != null && remote.isNotEmpty) {
       return ClipRRect(
         borderRadius: radius,
         child: SizedBox(
@@ -96,10 +97,4 @@ class CategoryImage extends StatelessWidget {
     );
   }
 
-  static bool _isNetworkUrl(String value) {
-    final uri = Uri.tryParse(value);
-    return uri != null &&
-        uri.hasScheme &&
-        (uri.scheme == 'http' || uri.scheme == 'https');
-  }
 }

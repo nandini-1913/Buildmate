@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/cart_controller.dart';
+import '../../../../core/state/order_history_controller.dart';
+import '../../../../core/state/session_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -88,6 +90,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
       delivery: widget.args.delivery,
       method: _method,
     );
+    final userId = context.read<SessionController>().user.id;
+    await context.read<OrderHistoryController>().recordOrder(
+      order,
+      userId: userId,
+    );
+    if (!mounted) return;
     cart.clear();
     // Drop cart → address → payment so back can't re-enter a paid checkout.
     Navigator.of(context).pushNamedAndRemoveUntil(

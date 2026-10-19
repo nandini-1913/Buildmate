@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../domain/models/catalog_models.dart';
+import '../../domain/models/pipes_fitting_catalog_models.dart';
 
 enum PipeFilterTab { sort, size, brand }
 
@@ -40,37 +41,41 @@ abstract final class PipeFilterSizes {
   static const all = [...leftColumn, ...rightColumn];
 }
 
-/// Wireframe brand options.
+/// Distinct brand names from live catalog data (no hardcoded list).
 abstract final class PipeFilterBrands {
-  static const names = [
-    'Astral',
-    'Finolex',
-    'Cera',
-    'Anchor',
-    'king',
-  ];
-}
-
-/// Class options per pipe Type (UPVC / PVC / CPVC price-list sheets).
-abstract final class PipeFilterClasses {
-  static const byType = {
-    'UPVC': ['Sch 40', 'Sch 80'],
-    'PVC': ['4 kg', '6 kg', '8 kg', '10 kg'],
-    'CPVC': ['SDR11', 'SDR13.5', 'Sch 40', 'Sch 80'],
-  };
-
-  /// Classes for [type], or every distinct class when [type] is null.
-  static List<String> forType(String? type) {
-    if (type != null) return byType[type] ?? const [];
-    final names = <String>[];
-    for (final classes in byType.values) {
-      for (final name in classes) {
-        if (!names.contains(name)) names.add(name);
+  static List<String> fromPipesCatalog(PipesFittingCatalog catalog) {
+    final brands = <String>{};
+    for (final type in catalog.types) {
+      for (final sub in type.subCategories) {
+        for (final cls in sub.classes) {
+          for (final product in cls.products) {
+            final name = product.brand.trim();
+            if (name.isNotEmpty) brands.add(name);
+          }
+        }
       }
     }
-    return names;
+    return _sorted(brands);
   }
 
+  static List<String> fromVariants(List<ProductVariant> variants) {
+    final brands = <String>{};
+    for (final variant in variants) {
+      final name = variant.brandName.trim();
+      if (name.isNotEmpty) brands.add(name);
+    }
+    return _sorted(brands);
+  }
+
+  static List<String> _sorted(Set<String> brands) {
+    final list = brands.toList();
+    list.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return list;
+  }
+}
+
+/// Class matching shared by the live Pipes & Fitting catalog filters.
+abstract final class PipeFilterClasses {
   /// Case- and space-insensitive match, so "4kg" equals "4 kg".
   static bool matches(String a, String b) =>
       a.replaceAll(' ', '').toLowerCase() == b.replaceAll(' ', '').toLowerCase();
@@ -89,6 +94,7 @@ class PipesFilterChrome extends StatelessWidget {
     required this.onSortChanged,
     required this.onSizeChanged,
     required this.onBrandChanged,
+    required this.availableBrands,
     this.showBrandTab = true,
   });
 
@@ -101,6 +107,7 @@ class PipesFilterChrome extends StatelessWidget {
   final ValueChanged<PipeModuleSort> onSortChanged;
   final ValueChanged<String?> onSizeChanged;
   final ValueChanged<String?> onBrandChanged;
+  final List<String> availableBrands;
   final bool showBrandTab;
 
   @override
@@ -116,6 +123,7 @@ class PipesFilterChrome extends StatelessWidget {
                 sort: sort,
                 selectedSize: selectedSize,
                 selectedBrand: selectedBrand,
+                availableBrands: availableBrands,
                 onSortChanged: onSortChanged,
                 onSizeChanged: onSizeChanged,
                 onBrandChanged: onBrandChanged,
@@ -158,12 +166,14 @@ class _FilterSheet extends StatelessWidget {
     required this.onSizeChanged,
     required this.onBrandChanged,
     required this.onClose,
+    required this.availableBrands,
   });
 
   final PipeFilterTab tab;
   final PipeModuleSort sort;
   final String? selectedSize;
   final String? selectedBrand;
+  final List<String> availableBrands;
   final ValueChanged<PipeModuleSort> onSortChanged;
   final ValueChanged<String?> onSizeChanged;
   final ValueChanged<String?> onBrandChanged;
@@ -250,6 +260,7 @@ class _FilterSheet extends StatelessWidget {
                       onChanged: onSizeChanged,
                     ),
                   PipeFilterTab.brand => _BrandOptions(
+                      brands: availableBrands,
                       selectedBrand: selectedBrand,
                       onChanged: onBrandChanged,
                     ),
@@ -358,27 +369,46 @@ class _SizeOptions extends StatelessWidget {
 
 class _BrandOptions extends StatelessWidget {
   const _BrandOptions({
+    required this.brands,
     required this.selectedBrand,
     required this.onChanged,
   });
 
+  final List<String> brands;
   final String? selectedBrand;
   final ValueChanged<String?> onChanged;
 
   @override
   Widget build(BuildContext context) {
+    if (brands.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space5),
+        child: Text(
+          'No brands in catalog',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
+
     return Column(
       children: [
-        for (final brand in PipeFilterBrands.names)
+        for (final brand in brands)
           _FilterOptionTile(
             label: brand,
-            selected: selectedBrand == brand,
-            onTap: () => onChanged(selectedBrand == brand ? null : brand),
+            selected: _brandEquals(selectedBrand, brand),
+            onTap: () => onChanged(
+              _brandEquals(selectedBrand, brand) ? null : brand,
+            ),
           ),
       ],
     );
   }
 }
+
+bool _brandEquals(String? a, String b) =>
+    a != null && a.toLowerCase() == b.toLowerCase();
 
 class _FilterOptionTile extends StatelessWidget {
   const _FilterOptionTile({
@@ -567,6 +597,44 @@ class _FilterTab extends StatelessWidget {
 double? pipeSizeMmValue(String raw) {
   final match = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(raw.trim());
   return match != null ? double.tryParse(match.group(1)!) : null;
+}
+
+/// Sort key for pipe size labels (`15 MM (½")`, `1"`, etc.).
+double? pipeSizeSortMm(String raw) {
+  final upper = raw.trim().toUpperCase();
+  final mmInLabel = RegExp(r'(\d+(?:\.\d+)?)\s*MM').firstMatch(upper);
+  if (mmInLabel != null) {
+    return double.tryParse(mmInLabel.group(1)!);
+  }
+  return pipeSizeMmValue(raw);
+}
+
+/// Inch-only label for UI chips (e.g. `40 MM (1½")` → `1½"`).
+String pipeSizeInchDisplayLabel(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return trimmed;
+
+  final paren = RegExp(r'\(([^)]+)\)').firstMatch(trimmed);
+  if (paren != null) {
+    var inch = paren.group(1)!.trim().replaceAll('”', '"');
+    if (!inch.endsWith('"')) inch = '$inch"';
+    return inch;
+  }
+
+  final normalized = trimmed.replaceAll('”', '"');
+  if (normalized.contains('"')) return normalized;
+  return trimmed;
+}
+
+void sortPipeSizesAscending(List<String> sizes) {
+  sizes.sort((a, b) {
+    final aMm = pipeSizeSortMm(a);
+    final bMm = pipeSizeSortMm(b);
+    if (aMm != null && bMm != null) return aMm.compareTo(bMm);
+    if (aMm != null) return -1;
+    if (bMm != null) return 1;
+    return a.compareTo(b);
+  });
 }
 
 /// Whether a product variant matches a wireframe size label.

@@ -1,35 +1,61 @@
-/// Domain models for the "Pipes & Fitting" mock catalog
-/// (assets/data/pipes_fitting_mock_data.json).
+/// Domain models for the "Pipes & Fitting" catalog hierarchy.
 ///
 /// Hierarchy: Category -> Type (UPVC/CPVC/PVC) -> SubCategory -> Class -> Product.
+/// Populated from `GET /api/catalog` (live server), not local mock assets.
 class PipesFittingProduct {
   const PipesFittingProduct({
+    this.id,
     required this.brand,
     required this.productName,
+    this.productGroup,
     this.length,
     this.size,
     this.productCode,
     this.stdPkg,
     required this.mrp,
+    this.sellingPrice,
+    this.discountRate,
+    this.imageUrl,
+    this.stock,
+    this.unit = 'pcs',
+    this.productClass,
   });
 
+  final String? id;
   final String brand;
   final String productName;
+  final String? productGroup;
   final String? length;
   final String? size;
   final String? productCode;
   final String? stdPkg;
   final double mrp;
+  final double? sellingPrice;
+  final double? discountRate;
+  final String? imageUrl;
+  final double? stock;
+  final String unit;
+  final String? productClass;
+
+  double get displayPrice => sellingPrice ?? mrp;
 
   factory PipesFittingProduct.fromJson(Map<String, dynamic> json) {
     return PipesFittingProduct(
+      id: json['id']?.toString(),
       brand: json['brand']?.toString() ?? '',
       productName: json['productName']?.toString() ?? '',
+      productGroup: json['productGroup']?.toString(),
       length: json['length']?.toString(),
       size: json['size']?.toString(),
       productCode: json['productCode']?.toString(),
       stdPkg: json['stdPkg']?.toString(),
       mrp: (json['mrp'] as num?)?.toDouble() ?? 0,
+      sellingPrice: (json['sellingPrice'] as num?)?.toDouble(),
+      discountRate: (json['discountRate'] as num?)?.toDouble(),
+      imageUrl: json['imageUrl']?.toString(),
+      stock: (json['stock'] as num?)?.toDouble(),
+      unit: json['unit']?.toString() ?? 'pcs',
+      productClass: json['productClass']?.toString(),
     );
   }
 }
@@ -57,14 +83,17 @@ class PipesFittingSubCategory {
   const PipesFittingSubCategory({
     required this.subCategory,
     required this.classes,
+    this.imageUrl,
   });
 
   final String subCategory;
   final List<PipesFittingClass> classes;
+  final String? imageUrl;
 
   factory PipesFittingSubCategory.fromJson(Map<String, dynamic> json) {
     return PipesFittingSubCategory(
       subCategory: json['subCategory']?.toString() ?? '',
+      imageUrl: json['image_url']?.toString() ?? json['imageUrl']?.toString(),
       classes: (json['classes'] as List<dynamic>? ?? [])
           .map((e) => PipesFittingClass.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -79,20 +108,41 @@ class PipesFittingType {
   const PipesFittingType({
     required this.type,
     required this.subCategories,
+    this.imageUrl,
   });
 
   final String type;
   final List<PipesFittingSubCategory> subCategories;
+  final String? imageUrl;
 
   factory PipesFittingType.fromJson(Map<String, dynamic> json) {
     return PipesFittingType(
       type: json['type']?.toString() ?? '',
+      imageUrl: json['image_url']?.toString() ?? json['imageUrl']?.toString(),
       subCategories: (json['subCategories'] as List<dynamic>? ?? [])
           .map(
             (e) => PipesFittingSubCategory.fromJson(e as Map<String, dynamic>),
           )
           .toList(),
     );
+  }
+
+  /// First non-empty image from API-backed catalog data (type, sub-category, or product).
+  String? get resolvedImageUrl {
+    if (imageUrl != null && imageUrl!.trim().isNotEmpty) {
+      return imageUrl!.trim();
+    }
+    for (final sub in subCategories) {
+      final subUrl = sub.imageUrl?.trim();
+      if (subUrl != null && subUrl.isNotEmpty) return subUrl;
+      for (final cls in sub.classes) {
+        for (final product in cls.products) {
+          final url = product.imageUrl?.trim();
+          if (url != null && url.isNotEmpty) return url;
+        }
+      }
+    }
+    return null;
   }
 
   int get productCount =>
@@ -119,8 +169,11 @@ class PipesFittingCatalog {
 
   PipesFittingType? typeByName(String name) {
     for (final type in types) {
-      if (type.type == name) return type;
+      if (type.type.toLowerCase() == name.toLowerCase()) return type;
     }
     return null;
   }
+
+  int get productCount =>
+      types.fold(0, (sum, t) => sum + t.productCount);
 }

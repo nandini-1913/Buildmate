@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../core/state/catalog_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
-import '../../features/catalog/data/mock/catalog_mock_data.dart';
 import '../../features/catalog/domain/models/catalog_models.dart';
 
 class CatalogFilterState {
@@ -103,12 +104,13 @@ class _CatalogFilterSheetState extends State<_CatalogFilterSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final catalog = context.read<CatalogController>();
     final sizes = widget.categoryId == null
         ? const <String>[]
-        : CatalogMockData.sizeOptionsForCategory(widget.categoryId!);
+        : catalog.sizeOptionsForCategory(widget.categoryId!);
     final materials = widget.categoryId == null
         ? const <String>[]
-        : CatalogMockData.attributeOptionsForCategory(
+        : catalog.attributeOptionsForCategory(
             widget.categoryId!,
             'Material',
           );

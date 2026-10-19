@@ -3,25 +3,26 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/cart_controller.dart';
+import '../../../../core/state/catalog_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_elevation.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/category_image.dart';
-import '../../data/mock/catalog_mock_data.dart';
-import '../../data/repositories/pipes_fitting_repository.dart';
 import '../../domain/models/catalog_models.dart';
 import '../../domain/models/pipes_fitting_catalog_models.dart';
+import '../../data/mappers/catalog_api_mapper.dart';
+import '../widgets/pdp_configurator_chips.dart';
+import '../widgets/pipe_configurator_classes.dart';
 import '../widgets/pipes_filter_panel.dart';
 
 /// Category-level entry screen for Plumbing Pipes & Fittings.
 ///
 /// Single-page Category -> Type -> Sub-category drilldown: the left sidebar
-/// lets the shopper pick a pipe Type (UPVC/PVC/CPVC) and a Sub-category
+/// lets the shopper pick a server-provided pipe type and sub-category
 /// (Pipe/Fitting/Tubing), and the product grid on the right updates in
-/// place — no new page is opened. Brand filtering is available from the
-/// dedicated button in the header. Driven by the same UPVC/PVC/CPVC mock
-/// catalog as before (assets/data/pipes_fitting_mock_data.json).
+/// place — no new page is opened. Data is loaded live from
+/// `GET /api/catalog` and polled for near-real-time updates.
 class PipesFittingCategoryScreen extends StatefulWidget {
   const PipesFittingCategoryScreen({super.key});
 
@@ -30,25 +31,26 @@ class PipesFittingCategoryScreen extends StatefulWidget {
       _PipesFittingCategoryScreenState();
 }
 
-enum _CatSection { all, upvc, pvc, cpvc }
-
-abstract final class _CatSidebarImages {
-  static const all = CatalogMockData.pipeAllThumbnailAsset;
-  static const upvc = 'assets/images/categories/fittings.png';
-  static const pvc = 'assets/images/pipes/single_pipe.png';
-  static const cpvc = 'assets/images/categories/sanitary_wares.png';
-}
-
 class _CatSectionMeta {
   const _CatSectionMeta({
-    required this.section,
+    required this.typeName,
     required this.label,
-    required this.imageAsset,
+    this.imageUrl,
   });
 
-  final _CatSection section;
+  final String? typeName;
   final String label;
-  final String imageAsset;
+  final String? imageUrl;
+}
+
+class _SubCatMeta {
+  const _SubCatMeta({
+    required this.name,
+    this.imageUrl,
+  });
+
+  final String name;
+  final String? imageUrl;
 }
 
 class _CategoryProductGroup {
@@ -57,92 +59,466 @@ class _CategoryProductGroup {
     required this.subCategory,
     required this.className,
     required this.products,
-    required this.imageAsset,
   });
 
   final String title;
   final String subCategory;
   final String className;
   final List<PipesFittingProduct> products;
-  final String imageAsset;
 
   double get minMrp =>
-      products.map((p) => p.mrp).reduce((a, b) => a < b ? a : b);
+      products.map((p) => p.displayPrice).reduce((a, b) => a < b ? a : b);
 
-  String get unit => 'pcs';
+  String get unit => products.isNotEmpty ? products.first.unit : 'pcs';
 
-  static const String discountLabel = 'discount 8%';
+  String get discountLabel {
+    final rates = products
+        .map((p) => p.discountRate)
+        .whereType<double>()
+        .where((r) => r > 0);
+    if (rates.isEmpty) return '';
+    final maxRate = rates.reduce((a, b) => a > b ? a : b);
+    return 'discount ${(maxRate * 100).round()}%';
+  }
 }
 
-/// Maps a mock [PipesFittingProduct] into a [ProductVariant] so it can be
+bool _isFittingSubCategory(String? subCategory) {
+  switch (subCategory?.trim().toLowerCase()) {
+    case 'fitting':
+    case 'fittings':
+      return true;
+    default:
+      return false;
+  }
+}
+
+/// Strips brand, material, and size tokens so fittings share one grid tile.
+String _normalizeFittingFamilyLabel(String raw, {required String brand}) {
+  var name = raw.trim();
+  if (name.isEmpty) return '';
+  if (brand.trim().isNotEmpty) {
+    name = name.replaceAll(
+      RegExp(RegExp.escape(brand.trim()), caseSensitive: false),
+      ' ',
+    );
+  }
+  name = name.replaceAll(
+    RegExp(r'\b(upvc|cpvc|pvc|swr|hdpe)\b', caseSensitive: false),
+    ' ',
+  );
+  name = name.replaceAll(
+    RegExp(r'\d+\s*(mm)?\s*x\s*\d+\s*(mm)?', caseSensitive: false),
+    ' ',
+  );
+  name = name.replaceAll(RegExp(r'\d+(\.\d+)?\s*"\b'), ' ');
+  name = name.replaceAll(RegExp(r'\d+\s*mm\b', caseSensitive: false), ' ');
+  name = name.replaceAll(RegExp(r'\(\s*[^)]+\)'), ' ');
+  name = name.replaceAll(RegExp(r'\bell\b', caseSensitive: false), 'elbow');
+  name = _normalizeProductFamilyLabel(name);
+  name = name.replaceAll(RegExp(r'[^\w\s]'), ' ');
+  name = name.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return name.toLowerCase();
+}
+
+/// Merges multi-brand pipe/tubing rows without collapsing different diameters.
+String _normalizePipeProductGroupKey(String raw, {required String brand}) {
+  var name = raw.trim();
+  if (name.isEmpty) return '';
+  if (brand.trim().isNotEmpty) {
+    name = name.replaceAll(
+      RegExp(RegExp.escape(brand.trim()), caseSensitive: false),
+      ' ',
+    );
+  }
+  name = name.replaceAll(
+    RegExp(r'\b(upvc|cpvc|pvc|swr|hdpe)\b', caseSensitive: false),
+    ' ',
+  );
+  name = _normalizeProductFamilyLabel(name);
+  name = name.replaceAll(RegExp(r'[^\w\s]'), ' ');
+  name = name.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return name.toLowerCase();
+}
+
+String _catalogFamilyToken(
+  PipesFittingProduct product, {
+  String? subCategory,
+}) {
+  final isFitting = _isFittingSubCategory(subCategory);
+  final group = product.productGroup?.trim();
+  if (group != null && group.isNotEmpty) {
+    final fromGroup = isFitting
+        ? _normalizeFittingFamilyLabel(group, brand: product.brand)
+        : _normalizePipeProductGroupKey(group, brand: product.brand);
+    if (fromGroup.isNotEmpty) return fromGroup;
+  }
+  final base = _productLineBaseName(product);
+  if (base.isNotEmpty) {
+    final fromBase = isFitting
+        ? _normalizeFittingFamilyLabel(base, brand: product.brand)
+        : _normalizePipeProductGroupKey(base, brand: product.brand);
+    if (fromBase.isNotEmpty) return fromBase;
+  }
+  if (isFitting) {
+    return _normalizeFittingFamilyLabel(
+      product.productName,
+      brand: product.brand,
+    );
+  }
+  return _normalizeProductFamilyLabel(product.productName);
+}
+
+String _familyTokenDisplayTitle(String token, {String? rawGroup}) {
+  final trimmedGroup = rawGroup?.trim();
+  if (trimmedGroup != null &&
+      trimmedGroup.isNotEmpty &&
+      !RegExp(r'\d').hasMatch(trimmedGroup) &&
+      trimmedGroup.length <= 40) {
+    return trimmedGroup;
+  }
+  if (token.isEmpty) return token;
+  return token
+      .split(' ')
+      .where((part) => part.isNotEmpty)
+      .map(
+        (part) =>
+            '${part[0].toUpperCase()}${part.substring(1)}',
+      )
+      .join(' ');
+}
+
+/// Groups size/brand variants of the same fitting or pipe line for grid cards.
+String _productLineKey(
+  PipesFittingProduct product, {
+  String? subCategory,
+}) {
+  final token = _catalogFamilyToken(product, subCategory: subCategory);
+  if (token.isNotEmpty) return 'group:$token';
+  final code = product.productCode?.trim();
+  if (code != null && code.isNotEmpty) return 'code:${code.toLowerCase()}';
+  return 'id:${product.id ?? product.productName.hashCode}';
+}
+
+String _productLineTitle(
+  PipesFittingProduct product, {
+  String? subCategory,
+}) {
+  if (_isFittingSubCategory(subCategory)) {
+    final token = _catalogFamilyToken(product, subCategory: subCategory);
+    if (token.isNotEmpty) {
+      return _familyTokenDisplayTitle(
+        token,
+        rawGroup: product.productGroup,
+      );
+    }
+  }
+  final group = product.productGroup?.trim();
+  if (group != null && group.isNotEmpty) return group;
+  final base = _productLineBaseName(product);
+  if (base.isNotEmpty) return base;
+  return product.productName.trim();
+}
+
+String _productLineBaseName(PipesFittingProduct product) {
+  var name = product.productName.trim();
+  final brand = product.brand.trim();
+  if (brand.isNotEmpty) {
+    name = name.replaceAll(
+      RegExp(RegExp.escape(brand), caseSensitive: false),
+      '',
+    );
+  }
+  final size = product.size?.trim();
+  if (size != null && size.isNotEmpty) {
+    final pattern = RegExp(
+      RegExp.escape(size),
+      caseSensitive: false,
+    );
+    name = name.replaceAll(pattern, '').trim();
+  }
+  name = name.replaceAll(
+    RegExp(r'\d+\s*MM\s*(\([^)]*\))?', caseSensitive: false),
+    '',
+  );
+  name = name.replaceAll(
+    RegExp(r'\b(SCH\s*\d+|SDR\s*[\d.]+|\d+\s*KG|CLASS\s*\d+|PN\s*\d+)\b', caseSensitive: false),
+    '',
+  );
+  name = name.replaceAll(RegExp(r'\s*,\s*'), ', ');
+  return name.replaceAll(RegExp(r',?\s*$'), '').trim();
+}
+
+/// Strips schedule / pressure tier so Sch 40 vs Sch 80 share one family.
+String _normalizeProductFamilyLabel(String raw) {
+  var name = raw.trim();
+  name = name.replaceAll(RegExp(r'sch\s*\d+', caseSensitive: false), '');
+  name = name.replaceAll(RegExp(r'sdr\s*[\d.]+', caseSensitive: false), '');
+  name = name.replaceAll(RegExp(r'\d+\s*kg', caseSensitive: false), '');
+  name = name.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return name.toLowerCase();
+}
+
+String _productFamilyKey(
+  PipesFittingProduct product, {
+  String? subCategory,
+}) {
+  final token = _catalogFamilyToken(product, subCategory: subCategory);
+  if (token.isNotEmpty) {
+    final prefix = _isFittingSubCategory(subCategory) ? 'fit' : 'pg';
+    return '$prefix:$token';
+  }
+  return _productLineKey(product, subCategory: subCategory);
+}
+
+bool _sameProductFamily(
+  PipesFittingProduct a,
+  PipesFittingProduct b, {
+  String? subCategory,
+}) =>
+    _productFamilyKey(a, subCategory: subCategory) ==
+    _productFamilyKey(b, subCategory: subCategory);
+
+bool _pipeBrandMatches(String a, String b) =>
+    a.trim().toLowerCase() == b.trim().toLowerCase();
+
+bool _pipeSizeMatches(String? a, String? b) {
+  if (a == null || b == null) return false;
+  final left = a.trim();
+  final right = b.trim();
+  if (left.isEmpty || right.isEmpty) return false;
+  if (left.toLowerCase() == right.toLowerCase()) return true;
+  final leftMm = pipeSizeMmValue(left);
+  final rightMm = pipeSizeMmValue(right);
+  return leftMm != null && rightMm != null && leftMm == rightMm;
+}
+
+String? _representativeImageUrl(List<PipesFittingProduct> products) {
+  final counts = <String, int>{};
+  for (final product in products) {
+    final url = product.imageUrl?.trim();
+    if (url == null || url.isEmpty) continue;
+    counts[url] = (counts[url] ?? 0) + 1;
+  }
+  if (counts.isEmpty) return null;
+  return counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+}
+
+String _productClassLabel(PipesFittingProduct product, String fallback) {
+  final value = product.productClass?.trim();
+  if (value != null && value.isNotEmpty) return value;
+  return fallback;
+}
+
+/// Splits a merged product line into per-class groups for the configurator.
+List<_CategoryProductGroup> splitGroupByProductClass(
+  _CategoryProductGroup group,
+) {
+  final buckets = <String, List<PipesFittingProduct>>{};
+  for (final product in group.products) {
+    final className = _productClassLabel(product, group.className);
+    buckets.putIfAbsent(className, () => []).add(product);
+  }
+  if (buckets.length <= 1) return [group];
+  return buckets.entries
+      .map(
+        (entry) => _CategoryProductGroup(
+          title: group.title,
+          subCategory: group.subCategory,
+          className: entry.key,
+          products: entry.value,
+        ),
+      )
+      .toList();
+}
+
+bool _groupMatchesClass(_CategoryProductGroup group, String classFilter) {
+  return group.products.any(
+    (p) => PipeFilterClasses.matches(
+      _productClassLabel(p, group.className),
+      classFilter,
+    ),
+  );
+}
+
+List<_CategoryProductGroup> buildPipeCatalogGroupsForSection(
+  PipesFittingCatalog catalog,
+  String? typeName,
+  String? subCategory,
+) {
+  final types = typeName == null
+      ? catalog.types
+      : catalog.types.where(
+          (type) => type.type.toLowerCase() == typeName.toLowerCase(),
+        );
+
+  final groups = <_CategoryProductGroup>[];
+  for (final type in types) {
+    for (final sub in type.subCategories) {
+      if (subCategory != null &&
+          sub.subCategory.toLowerCase() != subCategory.toLowerCase()) {
+        continue;
+      }
+      final buckets = <String, List<PipesFittingProduct>>{};
+      for (final cls in sub.classes) {
+        for (final product in cls.products) {
+          final key = _productFamilyKey(
+            product,
+            subCategory: sub.subCategory,
+          );
+          final bucket = buckets.putIfAbsent(key, () => []);
+          final id = product.id?.trim();
+          if (id != null &&
+              id.isNotEmpty &&
+              bucket.any((p) => p.id?.trim() == id)) {
+            continue;
+          }
+          bucket.add(product);
+        }
+      }
+      for (final lineProducts in buckets.values) {
+        if (lineProducts.isEmpty) continue;
+        final representative = lineProducts.first;
+        groups.add(
+          _CategoryProductGroup(
+            title: _productLineTitle(
+              representative,
+              subCategory: sub.subCategory,
+            ),
+            subCategory: sub.subCategory,
+            className: _productClassLabel(representative, ''),
+            products: lineProducts,
+          ),
+        );
+      }
+    }
+  }
+  return groups;
+}
+
+String? resolvePipeTypeForProduct(
+  PipesFittingCatalog catalog,
+  PipesFittingProduct product,
+) {
+  final productId = product.id?.trim();
+  final productCode = product.productCode?.trim().toLowerCase();
+
+  for (final type in catalog.types) {
+    for (final sub in type.subCategories) {
+      for (final cls in sub.classes) {
+        for (final candidate in cls.products) {
+          if (productId != null &&
+              productId.isNotEmpty &&
+              candidate.id?.trim() == productId) {
+            return type.type;
+          }
+          final code = candidate.productCode?.trim().toLowerCase();
+          if (productCode != null &&
+              productCode.isNotEmpty &&
+              code == productCode) {
+            return type.type;
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+List<_CategoryProductGroup> configuratorLineGroups({
+  required List<_CategoryProductGroup> catalogPool,
+  required _CategoryProductGroup initialGroup,
+  required PipesFittingProduct anchor,
+}) {
+  final subCategory = initialGroup.subCategory;
+  final lineKey = _productLineKey(anchor, subCategory: subCategory);
+  final lineTitle = _productLineTitle(anchor, subCategory: subCategory);
+
+  final familyKey = _productFamilyKey(anchor, subCategory: subCategory);
+  final matched = catalogPool.where((g) {
+    if (g.subCategory.toLowerCase() != initialGroup.subCategory.toLowerCase()) {
+      return false;
+    }
+    if (g.products.isEmpty) return false;
+    return g.products.any((p) {
+      if (_productFamilyKey(p, subCategory: subCategory) == familyKey) {
+        return true;
+      }
+      if (_productLineKey(p, subCategory: subCategory) == lineKey) {
+        return true;
+      }
+      if (_productLineTitle(p, subCategory: subCategory) == lineTitle) {
+        return true;
+      }
+      return _catalogFamilyToken(p, subCategory: subCategory) ==
+          _catalogFamilyToken(anchor, subCategory: subCategory);
+    });
+  }).toList();
+
+  if (matched.isNotEmpty) return matched;
+  return catalogPool
+      .where(
+        (g) =>
+            g.subCategory.toLowerCase() ==
+            initialGroup.subCategory.toLowerCase(),
+      )
+      .toList();
+}
+
+/// Maps a live [PipesFittingProduct] into a [ProductVariant] so it can be
 /// added to the shared [CartController] like any other catalog product.
 ProductVariant _variantFor(
   PipesFittingProduct product,
-  _CategoryProductGroup group,
-) {
-  final idParts = [
+  _CategoryProductGroup group, {
+  String? categoryId,
+}) {
+  final fallbackId = [
     product.brand,
     product.productName,
     product.size ?? '',
     product.productCode ?? '',
-  ].join('|').toLowerCase();
+  ].join('|').toLowerCase().hashCode;
+
+  final stockStatus = CatalogApiMapper.stockStatusFromQuantity(product.stock);
 
   return ProductVariant(
-    id: 'pipe-${idParts.hashCode}',
-    productId: 'pipe-product-${idParts.hashCode}',
+    id: product.id ?? 'pipe-$fallbackId',
+    productId: product.productCode ?? product.id ?? 'pipe-product-$fallbackId',
     productName: product.productName,
     sku: product.productCode ?? '',
-    brandId: product.brand.toLowerCase(),
+    brandId: 'brand-${product.brand.toLowerCase().replaceAll(' ', '-')}',
     brandName: product.brand,
-    categoryId: CatalogMockData.pipesTubingCategoryId,
-    categoryName: 'Pipes & Tubing',
+    categoryId: categoryId ?? '',
+    categoryName: 'PIPES & FITTING',
     subCategoryId: group.subCategory.toLowerCase(),
     subCategoryName: group.subCategory,
     description: group.title,
-    price: product.mrp,
-    unit: group.unit,
+    price: product.displayPrice,
+    unit: product.unit.isNotEmpty ? product.unit : group.unit,
     icon: 'plumbing',
     rating: 0,
     reviewCount: 0,
-    stockStatus: StockStatus.inStock,
+    stockStatus: stockStatus,
     specifications: {
       if (product.size != null) 'Size': product.size!,
       if (product.length != null) 'Length': product.length!,
       if (product.stdPkg != null) 'Std. Packaging': product.stdPkg!,
+      'Class': product.productClass ?? group.className,
     },
-    imageAsset: group.imageAsset,
+    imageAsset: '',
+    imageUrl: product.imageUrl,
     mrp: product.mrp,
+    discountRate: product.discountRate,
   );
 }
 
 class _PipesFittingCategoryScreenState
     extends State<PipesFittingCategoryScreen> {
-  static const _sections = [
-    _CatSectionMeta(
-      section: _CatSection.all,
-      label: 'All',
-      imageAsset: _CatSidebarImages.all,
-    ),
-    _CatSectionMeta(
-      section: _CatSection.pvc,
-      label: 'PVC',
-      imageAsset: _CatSidebarImages.pvc,
-    ),
-    _CatSectionMeta(
-      section: _CatSection.cpvc,
-      label: 'CPVC',
-      imageAsset: _CatSidebarImages.cpvc,
-    ),
-    _CatSectionMeta(
-      section: _CatSection.upvc,
-      label: 'UPVC',
-      imageAsset: _CatSidebarImages.upvc,
-    ),
-  ];
+  static const _allSection = _CatSectionMeta(
+    typeName: null,
+    label: 'All',
+  );
 
-  late final Future<PipesFittingCatalog> _catalogFuture;
-
-  _CatSection _section = _CatSection.all;
+  String? _selectedType;
   String? _subCategory;
   PipeModuleSort _sort = PipeModuleSort.all;
   String? _selectedBrand;
@@ -160,7 +536,14 @@ class _PipesFittingCategoryScreenState
   @override
   void initState() {
     super.initState();
-    _catalogFuture = PipesFittingRepository.load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final catalog = context.read<CatalogController>();
+      catalog.startPipeCatalogSync();
+      catalog.refreshPipeCatalog(
+        showLoading: catalog.pipesFittingCatalog == null,
+      );
+    });
   }
 
   @override
@@ -172,78 +555,99 @@ class _PipesFittingCategoryScreenState
     super.dispose();
   }
 
-  String? _typeNameForSection(_CatSection section) {
-    switch (section) {
-      case _CatSection.all:
-        return null;
-      case _CatSection.upvc:
-        return 'UPVC';
-      case _CatSection.pvc:
-        return 'PVC';
-      case _CatSection.cpvc:
-        return 'CPVC';
-    }
-  }
-
-  String _imageForType(String typeName) {
-    switch (typeName) {
-      case 'PVC':
-        return _CatSidebarImages.pvc;
-      case 'UPVC':
-        return _CatSidebarImages.upvc;
-      case 'CPVC':
-        return _CatSidebarImages.cpvc;
-      default:
-        return _CatSidebarImages.all;
-    }
-  }
-
-  List<String> _subCategoryNames(PipesFittingCatalog catalog) {
-    final names = <String>[];
-    for (final type in catalog.types) {
+  List<_SubCatMeta> _subCategoryItems(
+    PipesFittingCatalog catalog,
+    String? typeName,
+  ) {
+    final items = <_SubCatMeta>[];
+    final types = typeName == null
+        ? catalog.types
+        : catalog.types.where(
+            (type) => type.type.toLowerCase() == typeName.toLowerCase(),
+          );
+    for (final type in types) {
       for (final sub in type.subCategories) {
-        if (!names.any(
-          (n) => n.toLowerCase() == sub.subCategory.toLowerCase(),
-        )) {
-          names.add(sub.subCategory);
+        final lower = sub.subCategory.toLowerCase();
+        if (!items.any((item) => item.name.toLowerCase() == lower)) {
+          String? url = sub.imageUrl;
+          if (url == null || url.isEmpty) {
+            for (final cls in sub.classes) {
+              for (final p in cls.products) {
+                if (p.imageUrl != null && p.imageUrl!.isNotEmpty) {
+                  url = p.imageUrl;
+                  break;
+                }
+              }
+              if (url != null && url.isNotEmpty) break;
+            }
+          }
+          items.add(_SubCatMeta(
+            name: sub.subCategory,
+            imageUrl: (url != null && url.isNotEmpty) ? url : null,
+          ));
         }
       }
     }
-    return names;
+    items.sort((a, b) {
+      final order = _subCategoryDisplayOrder(a.name)
+          .compareTo(_subCategoryDisplayOrder(b.name));
+      if (order != 0) return order;
+      return a.name.compareTo(b.name);
+    });
+    return items;
+  }
+
+  /// Pipe before Fitting; other sub-categories follow alphabetically.
+  static int _subCategoryDisplayOrder(String name) {
+    final lower = name.toLowerCase();
+    if (lower == 'pipe' || lower == 'pipes') return 0;
+    if (lower == 'fitting' || lower == 'fittings') return 1;
+    return 2;
   }
 
   List<_CategoryProductGroup> _groupsForSection(
     PipesFittingCatalog catalog,
-    _CatSection section,
+    String? typeName,
     String? subCategory,
+  ) =>
+      buildPipeCatalogGroupsForSection(catalog, typeName, subCategory);
+
+  List<String> _classNamesForCatalog(
+    PipesFittingCatalog catalog,
+    String? typeName,
   ) {
-    final typeName = _typeNameForSection(section);
+    final classes = <String>[];
     final types = typeName == null
         ? catalog.types
-        : catalog.types.where((t) => t.type == typeName);
-
-    final groups = <_CategoryProductGroup>[];
-    for (final type in types) {
-      for (final sub in type.subCategories) {
-        if (subCategory != null &&
-            sub.subCategory.toLowerCase() != subCategory.toLowerCase()) {
-          continue;
-        }
-        for (final cls in sub.classes) {
-          if (cls.products.isEmpty) continue;
-          groups.add(
-            _CategoryProductGroup(
-              title: '${type.type} ${sub.subCategory} (${cls.className})',
-              subCategory: sub.subCategory,
-              className: cls.className,
-              products: cls.products,
-              imageAsset: _imageForType(type.type),
-            ),
+        : catalog.types.where(
+            (type) => type.type.toLowerCase() == typeName.toLowerCase(),
           );
+    for (final type in types) {
+      for (final subCategory in type.subCategories) {
+        for (final pipeClass in subCategory.classes) {
+          if (pipeClass.className.isNotEmpty &&
+              !classes.any(
+                (name) =>
+                    name.toLowerCase() == pipeClass.className.toLowerCase(),
+              )) {
+            classes.add(pipeClass.className);
+          }
         }
       }
     }
-    return groups;
+    return classes;
+  }
+
+  List<String> _sizeNamesForCatalog(PipesFittingCatalog catalog) {
+    final sizes = _groupsForSection(catalog, _selectedType, _subCategory)
+        .expand((group) => group.products)
+        .map((product) => product.size?.trim())
+        .whereType<String>()
+        .where((size) => size.isNotEmpty)
+        .toSet()
+        .toList();
+    sortPipeSizesAscending(sizes);
+    return sizes;
   }
 
   bool _matchesBrand(_CategoryProductGroup group, String brand) {
@@ -254,7 +658,13 @@ class _PipesFittingCategoryScreenState
 
   bool _matchesSize(_CategoryProductGroup group, String sizeLabel) {
     final targetMm = pipeSizeMmValue(sizeLabel);
-    if (targetMm == null) return false;
+    if (targetMm == null) {
+      return group.products.any(
+        (product) =>
+            product.size?.trim().toLowerCase() ==
+            sizeLabel.trim().toLowerCase(),
+      );
+    }
     return group.products.any((p) {
       final raw = p.size ?? '';
       final mm = pipeSizeMmValue(raw);
@@ -264,7 +674,7 @@ class _PipesFittingCategoryScreenState
   }
 
   List<_CategoryProductGroup> _filteredGroups(PipesFittingCatalog catalog) {
-    var groups = _groupsForSection(catalog, _section, _subCategory);
+    var groups = _groupsForSection(catalog, _selectedType, _subCategory);
 
     if (_selectedBrand != null) {
       groups = groups.where((g) => _matchesBrand(g, _selectedBrand!)).toList();
@@ -273,9 +683,7 @@ class _PipesFittingCategoryScreenState
       groups = groups.where((g) => _matchesSize(g, _size!)).toList();
     }
     if (_class != null) {
-      groups = groups
-          .where((g) => PipeFilterClasses.matches(g.className, _class!))
-          .toList();
+      groups = groups.where((g) => _groupMatchesClass(g, _class!)).toList();
     }
 
     switch (_sort) {
@@ -299,7 +707,7 @@ class _PipesFittingCategoryScreenState
       value.toLowerCase().endsWith('s') ? value : '${value}s';
 
   String _titleFor(PipesFittingCatalog catalog) {
-    final typeLabel = _typeNameForSection(_section);
+    final typeLabel = _selectedType;
     if (typeLabel == null && _subCategory == null) return catalog.category;
     if (typeLabel != null && _subCategory != null) {
       return '$typeLabel ${_pluralize(_subCategory!)}';
@@ -309,7 +717,7 @@ class _PipesFittingCategoryScreenState
   }
 
   String _subtitleFor(PipesFittingCatalog catalog) {
-    final typeLabel = _typeNameForSection(_section);
+    final typeLabel = _selectedType;
     if (_selectedBrand != null) {
       final scope = typeLabel ?? catalog.category;
       return '$_selectedBrand brand $scope products';
@@ -424,12 +832,16 @@ class _PipesFittingCategoryScreenState
       return;
     }
     _closeAllMenus();
+    final catalog = context.read<CatalogController>().pipesFittingCatalog;
     _showDropdown(
       buttonKey: _sizeButtonKey,
       setOverlay: (entry) => _sizeOverlay = entry,
       closeThis: _closeSizeMenu,
       menuWidth: 200,
       buildMenu: () => _SizeDropdownMenu(
+        sizes: catalog == null
+            ? const <String>[]
+            : _sizeNamesForCatalog(catalog),
         selectedSize: _size,
         onSelected: (size) {
           setState(() => _size = size);
@@ -439,18 +851,26 @@ class _PipesFittingCategoryScreenState
     );
   }
 
+  List<String> _brandNamesForFilter(PipesFittingCatalog catalog) =>
+      PipeFilterBrands.fromPipesCatalog(catalog);
+
   void _toggleBrandMenu() {
     if (_brandOverlay != null) {
       _closeBrandMenu();
       return;
     }
     _closeAllMenus();
+    final catalog = context.read<CatalogController>().pipesFittingCatalog;
+    final brandNames = catalog != null
+        ? _brandNamesForFilter(catalog)
+        : const <String>[];
     _showDropdown(
       buttonKey: _brandButtonKey,
       setOverlay: (entry) => _brandOverlay = entry,
       closeThis: _closeBrandMenu,
       menuWidth: 220,
       buildMenu: () => _BrandDropdownMenu(
+        brands: brandNames,
         selectedBrand: _selectedBrand,
         onSelected: (brand) {
           setState(() => _selectedBrand = brand);
@@ -466,13 +886,16 @@ class _PipesFittingCategoryScreenState
       return;
     }
     _closeAllMenus();
+    final catalog = context.read<CatalogController>().pipesFittingCatalog;
     _showDropdown(
       buttonKey: _classButtonKey,
       setOverlay: (entry) => _classOverlay = entry,
       closeThis: _closeClassMenu,
       menuWidth: 200,
       buildMenu: () => _ClassDropdownMenu(
-        classes: PipeFilterClasses.forType(_typeNameForSection(_section)),
+        classes: catalog == null
+            ? const <String>[]
+            : _classNamesForCatalog(catalog, _selectedType),
         selectedClass: _class,
         onSelected: (className) {
           setState(() => _class = className);
@@ -515,117 +938,170 @@ class _PipesFittingCategoryScreenState
           brandButtonKey: _brandButtonKey,
           classButtonKey: _classButtonKey,
           onBack: () => Navigator.of(context).maybePop(),
-          onSearch: () => Navigator.of(context).pushNamed(AppRoutes.search),
+          onSearch: () => Navigator.of(
+            context,
+          ).pushNamed(AppRoutes.search, arguments: const SearchArgs()),
           onSortTap: _toggleSortMenu,
           onSizeTap: _toggleSizeMenu,
           onBrandTap: _toggleBrandMenu,
           onClassTap: _toggleClassMenu,
         ),
-        Expanded(
-          child: FutureBuilder<PipesFittingCatalog>(
-            future: _catalogFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                );
-              }
-              final catalog = snapshot.data;
-              if (catalog == null) {
-                return const _CatalogStateMessage(
-                  icon: Icons.error_outline_rounded,
-                  title: 'Unable to load catalog',
-                  subtitle: 'Please check your connection and try again.',
-                );
-              }
+        Expanded(child: _buildCatalogContent(context)),
+      ],
+    );
+  }
 
-              final groups = _filteredGroups(catalog);
-              final subCategoryNames = _subCategoryNames(catalog);
+  Widget _buildCatalogContent(BuildContext context) {
+    final catalogCtrl = context.watch<CatalogController>();
+    final catalog = catalogCtrl.pipesFittingCatalog;
 
-              return Stack(
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _CategorySidebar(
-                        sections: _sections,
-                        selected: _section,
-                        subCategoryNames: subCategoryNames,
-                        selectedSubCategory: _subCategory,
-                        onSectionSelected: (section) => setState(() {
-                          _section = section;
-                          if (section == _CatSection.all) {
-                            _subCategory = null;
-                          }
-                          // Drop a class the newly picked Type doesn't offer.
-                          final classes = PipeFilterClasses.forType(
-                            _typeNameForSection(section),
-                          );
-                          if (_class != null &&
-                              !classes.any(
-                                (c) => PipeFilterClasses.matches(c, _class!),
-                              )) {
-                            _class = null;
-                          }
-                        }),
-                        onSubCategorySelected: (name) =>
-                            setState(() => _subCategory = name),
-                      ),
-                      Expanded(
-                        child: ColoredBox(
-                          color: AppColors.background,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _ContentHeading(
-                                title: _titleFor(catalog),
-                                subtitle: _subtitleFor(catalog),
-                              ),
-                              Expanded(
-                                child: groups.isEmpty
-                                    ? const _CatalogStateMessage(
-                                        icon: Icons.inventory_2_outlined,
-                                        title: 'No products here yet',
-                                        subtitle:
-                                            'Try another category or adjust your filters.',
-                                      )
-                                    : GridView.builder(
-                                        padding: const EdgeInsets.fromLTRB(
-                                          AppSpacing.space3,
-                                          0,
-                                          AppSpacing.space3,
-                                          AppSpacing.space2,
-                                        ),
-                                        gridDelegate:
-                                            const SliverGridDelegateWithFixedCrossAxisCount(
-                                              crossAxisCount: 2,
-                                              mainAxisSpacing:
-                                                  AppSpacing.space3,
-                                              crossAxisSpacing:
-                                                  AppSpacing.space3,
-                                              childAspectRatio: 0.56,
-                                            ),
-                                        itemCount: groups.length,
-                                        itemBuilder: (context, index) {
-                                          final group = groups[index];
-                                          return _CategoryProductCard(
-                                            group: group,
-                                            siblingGroups: groups,
-                                          );
-                                        },
-                                      ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            },
+    if (catalogCtrl.isLoading && catalog == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
+
+    if (catalog == null) {
+      return _CatalogStateMessage(
+        icon: Icons.cloud_off_rounded,
+        title: 'Unable to load catalog',
+        subtitle:
+            catalogCtrl.error ?? 'Please check your connection and try again.',
+        actionLabel: 'Retry',
+        onAction: () => context.read<CatalogController>().refreshPipeCatalog(
+          showLoading: true,
+        ),
+      );
+    }
+
+    final brandNames = _brandNamesForFilter(catalog);
+    if (_selectedBrand != null &&
+        !brandNames.any(
+          (b) => b.toLowerCase() == _selectedBrand!.toLowerCase(),
+        )) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _selectedBrand = null);
+      });
+    }
+
+    final groups = _filteredGroups(catalog);
+    final sectionGroups = _groupsForSection(
+      catalog,
+      _selectedType,
+      _subCategory,
+    );
+    final sections = [
+      _allSection,
+      for (final type in catalog.types)
+        _CatSectionMeta(
+          typeName: type.type,
+          label: type.type,
+          imageUrl: catalogCtrl.pipeTypeSidebarImageUrl(
+            type.type,
+            catalogFallbackUrl: type.resolvedImageUrl,
           ),
         ),
+    ];
+    final subCategoryItems = _subCategoryItems(catalog, _selectedType);
+
+    return Stack(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _CategorySidebar(
+              sections: sections,
+              selectedType: _selectedType,
+              subCategories: subCategoryItems,
+              selectedSubCategory: _subCategory,
+              onSectionSelected: (typeName) => setState(() {
+                _selectedType = typeName;
+                _subCategory = null;
+                final classes = _classNamesForCatalog(catalog, typeName);
+                if (_class != null &&
+                    !classes.any(
+                      (c) => PipeFilterClasses.matches(c, _class!),
+                    )) {
+                  _class = null;
+                }
+                final sizes = _sizeNamesForCatalog(catalog);
+                if (_size != null &&
+                    !sizes.any(
+                      (size) => size.toLowerCase() == _size!.toLowerCase(),
+                    )) {
+                  _size = null;
+                }
+              }),
+              onSubCategorySelected: (name) => setState(() {
+                _subCategory = name;
+                final sizes = _sizeNamesForCatalog(catalog);
+                if (_size != null &&
+                    !sizes.any(
+                      (size) => size.toLowerCase() == _size!.toLowerCase(),
+                    )) {
+                  _size = null;
+                }
+              }),
+            ),
+            Expanded(
+              child: ColoredBox(
+                color: AppColors.background,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ContentHeading(
+                      title: _titleFor(catalog),
+                      subtitle: _subtitleFor(catalog),
+                    ),
+                    Expanded(
+                      child: groups.isEmpty
+                          ? const _CatalogStateMessage(
+                              icon: Icons.inventory_2_outlined,
+                              title: 'No products here yet',
+                              subtitle:
+                                  'Try another category or adjust your filters.',
+                            )
+                          : GridView.builder(
+                              padding: const EdgeInsets.fromLTRB(
+                                AppSpacing.space3,
+                                0,
+                                AppSpacing.space3,
+                                AppSpacing.space2,
+                              ),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    mainAxisSpacing: AppSpacing.space3,
+                                    crossAxisSpacing: AppSpacing.space3,
+                                    childAspectRatio: 0.52,
+                                  ),
+                              itemCount: groups.length,
+                              itemBuilder: (context, index) {
+                                final group = groups[index];
+                                return _CategoryProductCard(
+                                  group: group,
+                                  catalogSectionGroups: sectionGroups,
+                                  pipeType: _selectedType,
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (catalogCtrl.isLoading)
+          const Positioned(
+            top: 8,
+            right: 12,
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
       ],
     );
   }
@@ -785,7 +1261,7 @@ class _FilterDropdownButton extends StatelessWidget {
         borderRadius: AppRadius.smAll,
         child: Container(
           padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.space3,
+            horizontal: AppSpacing.space2,
             vertical: AppSpacing.space2,
           ),
           decoration: BoxDecoration(
@@ -794,6 +1270,7 @@ class _FilterDropdownButton extends StatelessWidget {
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Flexible(
                 child: Text(
@@ -806,10 +1283,10 @@ class _FilterDropdownButton extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: AppSpacing.space1),
+              const SizedBox(width: 2),
               Icon(
                 Icons.keyboard_arrow_down_rounded,
-                size: 18,
+                size: 16,
                 color: AppColors.primary,
               ),
             ],
@@ -868,10 +1345,12 @@ class _SortDropdownMenuState extends State<_SortDropdownMenu> {
 
 class _SizeDropdownMenu extends StatefulWidget {
   const _SizeDropdownMenu({
+    required this.sizes,
     required this.selectedSize,
     required this.onSelected,
   });
 
+  final List<String> sizes;
   final String? selectedSize;
   final ValueChanged<String?> onSelected;
 
@@ -884,7 +1363,7 @@ class _SizeDropdownMenuState extends State<_SizeDropdownMenu> {
 
   @override
   Widget build(BuildContext context) {
-    final sizes = PipeFilterSizes.all.where(
+    final sizes = widget.sizes.where(
       (size) => size.toLowerCase().contains(_query.toLowerCase()),
     );
 
@@ -911,10 +1390,12 @@ class _SizeDropdownMenuState extends State<_SizeDropdownMenu> {
 
 class _BrandDropdownMenu extends StatefulWidget {
   const _BrandDropdownMenu({
+    required this.brands,
     required this.selectedBrand,
     required this.onSelected,
   });
 
+  final List<String> brands;
   final String? selectedBrand;
   final ValueChanged<String?> onSelected;
 
@@ -927,7 +1408,7 @@ class _BrandDropdownMenuState extends State<_BrandDropdownMenu> {
 
   @override
   Widget build(BuildContext context) {
-    final brands = PipeFilterBrands.names.where(
+    final filtered = widget.brands.where(
       (brand) => brand.toLowerCase().contains(_query.toLowerCase()),
     );
 
@@ -941,10 +1422,18 @@ class _BrandDropdownMenuState extends State<_BrandDropdownMenu> {
             selected: widget.selectedBrand == null,
             onTap: () => widget.onSelected(null),
           ),
-        for (final brand in brands)
+        if (widget.brands.isEmpty && _query.isEmpty)
+          _DropdownTile(
+            label: 'No brands in catalog',
+            selected: false,
+            onTap: () {},
+          ),
+        for (final brand in filtered)
           _DropdownTile(
             label: brand,
-            selected: widget.selectedBrand == brand,
+            selected:
+                widget.selectedBrand != null &&
+                widget.selectedBrand!.toLowerCase() == brand.toLowerCase(),
             onTap: () => widget.onSelected(brand),
           ),
       ],
@@ -1260,11 +1749,15 @@ class _CatalogStateMessage extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.actionLabel,
+    this.onAction,
   });
 
   final IconData icon;
   final String title;
   final String? subtitle;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -1303,6 +1796,10 @@ class _CatalogStateMessage extends StatelessWidget {
                 ),
               ),
             ],
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: AppSpacing.space4),
+              FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+            ],
           ],
         ),
       ),
@@ -1310,66 +1807,91 @@ class _CatalogStateMessage extends StatelessWidget {
   }
 }
 
-class _CategorySidebar extends StatelessWidget {
+class _CategorySidebar extends StatefulWidget {
   const _CategorySidebar({
     required this.sections,
-    required this.selected,
-    required this.subCategoryNames,
+    required this.selectedType,
+    required this.subCategories,
     required this.selectedSubCategory,
     required this.onSectionSelected,
     required this.onSubCategorySelected,
   });
 
   final List<_CatSectionMeta> sections;
-  final _CatSection selected;
-  final List<String> subCategoryNames;
+  final String? selectedType;
+  final List<_SubCatMeta> subCategories;
   final String? selectedSubCategory;
-  final ValueChanged<_CatSection> onSectionSelected;
+  final ValueChanged<String?> onSectionSelected;
   final ValueChanged<String?> onSubCategorySelected;
 
   @override
+  State<_CategorySidebar> createState() => _CategorySidebarState();
+}
+
+class _CategorySidebarState extends State<_CategorySidebar> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final allMeta = sections.first;
-    final typeMetas = sections.skip(1).toList();
+    final allMeta = widget.sections.first;
+    final typeMetas = widget.sections.skip(1).toList();
 
     return ColoredBox(
       color: AppColors.surfaceContainer,
       child: SizedBox(
-        width: 108,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.space3),
-          children: [
-            _SidebarAllRow(
-              meta: allMeta,
-              selected: selected == _CatSection.all,
-              onTap: () => onSectionSelected(_CatSection.all),
+        width: 96,
+        child: Scrollbar(
+          controller: _scrollController,
+          thickness: 3,
+          radius: const Radius.circular(3),
+          child: ListView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
             ),
-            const SizedBox(height: AppSpacing.space3),
-            const _SidebarSectionLabel(label: 'Type'),
-            for (final meta in typeMetas)
-              _SidebarTypeRow(
-                meta: meta,
-                selected: selected == meta.section,
-                onTap: () => onSectionSelected(meta.section),
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.space3),
+            children: [
+              _SidebarSectionLabel(
+                label: allMeta.label,
+                selected: widget.selectedType == null,
+                onTap: () => widget.onSectionSelected(null),
               ),
-            if (selected != _CatSection.all) ...[
               const SizedBox(height: AppSpacing.space3),
-              const _SidebarSectionLabel(label: 'Sub-category'),
-              _SidebarSubCategoryRow(
-                label: 'All',
-                selected: selectedSubCategory == null,
-                onTap: () => onSubCategorySelected(null),
-              ),
-              for (final name in subCategoryNames)
-                _SidebarSubCategoryRow(
-                  label: name,
-                  selected:
-                      selectedSubCategory?.toLowerCase() == name.toLowerCase(),
-                  onTap: () => onSubCategorySelected(name),
+              const _SidebarSectionLabel(label: 'Type'),
+              for (final meta in typeMetas)
+                _SidebarImageTile(
+                  label: meta.label,
+                  selected: widget.selectedType?.toLowerCase() ==
+                      meta.typeName?.toLowerCase(),
+                  onTap: () => widget.onSectionSelected(meta.typeName),
+                  imageUrl: meta.imageUrl,
                 ),
+              if (widget.selectedType != null) ...[
+                const SizedBox(height: AppSpacing.space3),
+                const _SidebarSectionLabel(label: 'Sub-category'),
+                _SidebarAllRow(
+                  meta: allMeta,
+                  selected: widget.selectedSubCategory == null,
+                  onTap: () => widget.onSubCategorySelected(null),
+                ),
+                for (final sub in widget.subCategories)
+                  _SidebarImageTile(
+                    label: sub.name,
+                    selected: widget.selectedSubCategory?.toLowerCase() ==
+                        sub.name.toLowerCase(),
+                    onTap: () => widget.onSubCategorySelected(sub.name),
+                    imageUrl: sub.imageUrl,
+                  ),
+              ],
+              const SizedBox(height: AppSpacing.space2),
             ],
-            const SizedBox(height: AppSpacing.space2),
-          ],
+          ),
         ),
       ),
     );
@@ -1377,28 +1899,67 @@ class _CategorySidebar extends StatelessWidget {
 }
 
 class _SidebarSectionLabel extends StatelessWidget {
-  const _SidebarSectionLabel({required this.label});
+  const _SidebarSectionLabel({
+    required this.label,
+    this.selected = false,
+    this.onTap,
+  });
 
   final String label;
+  final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.space3,
-        AppSpacing.space2,
-        AppSpacing.space3,
-        AppSpacing.space1,
+    final theme = Theme.of(context);
+    final interactive = onTap != null;
+    final fill = selected && interactive
+        ? AppColors.primaryContainer.withValues(alpha: 0.55)
+        : AppColors.primaryContainer.withValues(alpha: 0.35);
+
+    final labelChild = Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.space2,
+        vertical: AppSpacing.space1,
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: AppColors.onSurfaceVariant,
-          fontWeight: FontWeight.w700,
+        textAlign: TextAlign.center,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: selected && interactive
+              ? AppColors.onBackground
+              : AppColors.primary,
+          fontWeight: selected && interactive ? FontWeight.w800 : FontWeight.w700,
           fontSize: 11,
-          letterSpacing: 0.4,
+          letterSpacing: 0.3,
         ),
       ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.space2,
+        AppSpacing.space2,
+        AppSpacing.space2,
+        AppSpacing.space1,
+      ),
+      child: interactive
+          ? Material(
+              color: fill,
+              borderRadius: AppRadius.smAll,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: AppRadius.smAll,
+                child: labelChild,
+              ),
+            )
+          : DecoratedBox(
+              decoration: BoxDecoration(
+                color: fill,
+                borderRadius: AppRadius.smAll,
+              ),
+              child: labelChild,
+            ),
     );
   }
 }
@@ -1449,16 +2010,22 @@ class _SidebarAllRow extends StatelessWidget {
   }
 }
 
-class _SidebarTypeRow extends StatelessWidget {
-  const _SidebarTypeRow({
-    required this.meta,
+class _SidebarImageTile extends StatelessWidget {
+  const _SidebarImageTile({
+    required this.label,
     required this.selected,
     required this.onTap,
+    this.imageAsset = '',
+    this.imageUrl,
   });
 
-  final _CatSectionMeta meta;
+  final String label;
   final bool selected;
   final VoidCallback onTap;
+  final String imageAsset;
+  final String? imageUrl;
+
+  static const double _circleSize = 52;
 
   @override
   Widget build(BuildContext context) {
@@ -1470,53 +2037,58 @@ class _SidebarTypeRow extends StatelessWidget {
         vertical: 2,
       ),
       child: Material(
-        color: selected ? AppColors.primarySidebarSelected : Colors.transparent,
+        color: selected
+            ? AppColors.primarySidebarSelected
+            : Colors.transparent,
         borderRadius: AppRadius.smAll,
         child: InkWell(
           onTap: onTap,
           borderRadius: AppRadius.smAll,
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.space2,
-              vertical: AppSpacing.space1,
+              horizontal: AppSpacing.space1,
+              vertical: AppSpacing.space2,
             ),
-            child: Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 30,
-                  height: 30,
+                  width: _circleSize,
+                  height: _circleSize,
                   decoration: BoxDecoration(
+                    shape: BoxShape.circle,
                     color: AppColors.surface,
-                    borderRadius: AppRadius.smAll,
-                    border: selected
-                        ? null
-                        : Border.all(color: AppColors.outlineVariant),
+                    border: Border.all(
+                      color: selected
+                          ? AppColors.primary
+                          : AppColors.outlineVariant,
+                      width: selected ? 1.5 : 1,
+                    ),
                   ),
+                  padding: const EdgeInsets.all(2),
                   clipBehavior: Clip.antiAlias,
-                  padding: const EdgeInsets.all(4),
                   child: CategoryImage(
-                    imageAsset: meta.imageAsset,
+                    imageAsset: imageAsset,
+                    imageUrl: imageUrl,
                     fallbackIcon: 'plumbing',
                     fallbackIconColor: AppColors.outline,
                     fallbackBackground: AppColors.surface,
                     fit: BoxFit.contain,
-                    width: 22,
-                    height: 22,
-                    iconSize: 16,
+                    iconSize: 26,
                   ),
                 ),
-                const SizedBox(width: AppSpacing.space2),
-                Expanded(
-                  child: Text(
-                    meta.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                      color: selected
-                          ? AppColors.onSurface
-                          : AppColors.onBackground,
-                    ),
+                const SizedBox(height: AppSpacing.space1),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    height: 1.15,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    color: selected
+                        ? AppColors.onSurface
+                        : AppColors.onBackground,
                   ),
                 ),
               ],
@@ -1528,71 +2100,35 @@ class _SidebarTypeRow extends StatelessWidget {
   }
 }
 
-class _SidebarSubCategoryRow extends StatelessWidget {
-  const _SidebarSubCategoryRow({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.space2,
-        vertical: 2,
-      ),
-      child: Material(
-        color: selected ? AppColors.primarySidebarSelected : Colors.transparent,
-        borderRadius: AppRadius.smAll,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AppRadius.smAll,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.space3,
-              vertical: AppSpacing.space2,
-            ),
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelMedium?.copyWith(
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-                color: selected
-                    ? AppColors.onSurface
-                    : AppColors.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _CategoryProductCard extends StatelessWidget {
   const _CategoryProductCard({
     required this.group,
-    required this.siblingGroups,
+    required this.catalogSectionGroups,
+    required this.pipeType,
   });
 
   final _CategoryProductGroup group;
-  final List<_CategoryProductGroup> siblingGroups;
+  final List<_CategoryProductGroup> catalogSectionGroups;
+  final String? pipeType;
 
   void _openConfigurator(BuildContext context) {
+    if (group.products.isEmpty) return;
+    final anchor = group.products.first;
+    final lineGroups = splitGroupByProductClass(group);
+    final initialGroup = lineGroups.firstWhere(
+      (g) => g.products.contains(anchor),
+      orElse: () => lineGroups.first,
+    );
+    final initialProduct = anchor;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => _PipeConfiguratorScreen(
-          groups: siblingGroups,
-          initialGroup: group,
-          initialProduct: group.products.first,
+          groups: lineGroups,
+          catalogSectionGroups: catalogSectionGroups,
+          pipeType: pipeType,
+          subCategory: group.subCategory,
+          initialGroup: initialGroup,
+          initialProduct: initialProduct,
         ),
       ),
     );
@@ -1632,7 +2168,8 @@ class _CategoryProductCard extends StatelessWidget {
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: CategoryImage(
-                        imageAsset: group.imageAsset,
+                        imageAsset: '',
+                        imageUrl: _representativeImageUrl(group.products),
                         fallbackIcon: 'plumbing',
                         fallbackIconColor: AppColors.outline,
                         fallbackBackground: AppColors.surfaceContainer,
@@ -1666,7 +2203,9 @@ class _CategoryProductCard extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              '${group.products.length} Products',
+                              group.products.length == 1
+                                  ? '1 option'
+                                  : '${group.products.length} options',
                               style: theme.textTheme.labelSmall?.copyWith(
                                 color: AppColors.onAccentGreenContainer,
                                 fontSize: 10,
@@ -1716,15 +2255,17 @@ class _CategoryProductCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _CategoryProductGroup.discountLabel,
-                    maxLines: 1,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: AppColors.success,
-                      fontWeight: FontWeight.w700,
+                  if (group.discountLabel.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      group.discountLabel,
+                      maxLines: 1,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: 2),
                   Text(
                     group.title,
@@ -1753,11 +2294,17 @@ class _CategoryProductCard extends StatelessWidget {
 class _PipeConfiguratorScreen extends StatefulWidget {
   const _PipeConfiguratorScreen({
     required this.groups,
+    required this.catalogSectionGroups,
+    required this.pipeType,
+    required this.subCategory,
     required this.initialGroup,
     required this.initialProduct,
   });
 
   final List<_CategoryProductGroup> groups;
+  final List<_CategoryProductGroup> catalogSectionGroups;
+  final String? pipeType;
+  final String subCategory;
   final _CategoryProductGroup initialGroup;
   final PipesFittingProduct initialProduct;
 
@@ -1770,58 +2317,367 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
   late _CategoryProductGroup _group = widget.initialGroup;
   late PipesFittingProduct _product = widget.initialProduct;
 
-  static String _typeLabelFor(_CategoryProductGroup group) {
-    final match = RegExp(r'\(([^)]+)\)').firstMatch(group.title);
-    return match?.group(1) ?? group.title;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final catalog = context.read<CatalogController>();
+      catalog.startPipeCatalogSync();
+      catalog.refreshPipeCatalog(showLoading: false);
+    });
   }
 
-  List<_CategoryProductGroup> get _siblingGroups => widget.groups
-      .where(
-        (g) =>
-            g.subCategory.toLowerCase() ==
-            widget.initialGroup.subCategory.toLowerCase(),
-      )
-      .toList();
+  List<_CategoryProductGroup> _catalogPool(BuildContext context) {
+    final catalog = context.read<CatalogController>().pipesFittingCatalog;
+    if (catalog != null) {
+      final typeName =
+          widget.pipeType ?? resolvePipeTypeForProduct(catalog, _product);
+      if (typeName != null) {
+        final live = buildPipeCatalogGroupsForSection(
+          catalog,
+          typeName,
+          widget.subCategory,
+        );
+        if (live.isNotEmpty) return live;
+      }
+    }
+    if (widget.catalogSectionGroups.isNotEmpty) {
+      return widget.catalogSectionGroups;
+    }
+    return widget.groups;
+  }
 
-  List<String> get _sizeOptions {
-    final sizes = <String>{
-      for (final p in _group.products)
-        if (p.size != null && p.size!.isNotEmpty) p.size!,
+  List<_CategoryProductGroup> _familyGroups(BuildContext context) {
+    final familyKey = _productFamilyKey(
+      _product,
+      subCategory: widget.subCategory,
+    );
+    return _catalogPool(context).where((g) {
+      if (g.subCategory.toLowerCase() != widget.subCategory.toLowerCase()) {
+        return false;
+      }
+      return g.products.any(
+        (p) =>
+            _productFamilyKey(p, subCategory: widget.subCategory) == familyKey,
+      );
+    }).toList();
+  }
+
+  List<_CategoryProductGroup> _groupsForCurrentClass(BuildContext context) {
+    return _familyGroups(context)
+        .where(
+          (g) => PipeConfiguratorClasses.sameClassBucket(
+            g.className,
+            _group.className,
+          ),
+        )
+        .toList();
+  }
+
+  void _collectFamilySizesFromCatalog(
+    BuildContext context,
+    Set<String> sizes,
+  ) {
+    final catalog = context.read<CatalogController>().pipesFittingCatalog;
+    if (catalog == null) return;
+    final typeName = _resolvedPipeType(context);
+    final familyKey = _productFamilyKey(
+      _product,
+      subCategory: widget.subCategory,
+    );
+
+    for (final type in catalog.types) {
+      if (typeName != null &&
+          type.type.toLowerCase() != typeName.toLowerCase()) {
+        continue;
+      }
+      for (final sub in type.subCategories) {
+        if (sub.subCategory.toLowerCase() != widget.subCategory.toLowerCase()) {
+          continue;
+        }
+        for (final cls in sub.classes) {
+          if (!PipeConfiguratorClasses.sameClassBucket(
+            cls.className,
+            _group.className,
+          )) {
+            continue;
+          }
+          for (final p in cls.products) {
+            if (_productFamilyKey(p, subCategory: widget.subCategory) !=
+                familyKey) {
+              continue;
+            }
+            final size = p.size?.trim();
+            if (size != null && size.isNotEmpty) sizes.add(size);
+          }
+        }
+      }
+    }
+  }
+
+  List<String> _sizeOptions(BuildContext context) {
+    final sizes = <String>{};
+    _collectFamilySizesFromCatalog(context, sizes);
+    for (final g in _groupsForCurrentClass(context)) {
+      for (final p in g.products) {
+        final size = p.size?.trim();
+        if (size != null && size.isNotEmpty) sizes.add(size);
+      }
+    }
+    final list = sizes.toList();
+    sortPipeSizesAscending(list);
+    return list;
+  }
+
+  List<String> _brandOptions(BuildContext context) {
+    final brands = <String>{
+      for (final g in _familyGroups(context))
+        for (final p in g.products)
+          if (p.brand.trim().isNotEmpty) p.brand.trim(),
     }.toList();
-    sizes.sort();
-    return sizes;
+    brands.sort();
+    return brands;
   }
 
-  List<String> get _typeOptions {
-    final types = <String>{
-      for (final g in _siblingGroups) _typeLabelFor(g),
-    }.toList();
-    types.sort();
-    return types;
+  bool _inStock(PipesFittingProduct product) {
+    return CatalogApiMapper.isPurchasableStock(product.stock);
   }
 
-  void _onSizeChanged(String? size) {
-    if (size == null) return;
-    final match = _group.products.where((p) => p.size == size);
-    if (match.isEmpty) return;
-    setState(() => _product = match.first);
+
+
+  String? _resolvedPipeType(BuildContext context) {
+    if (widget.pipeType != null && widget.pipeType!.trim().isNotEmpty) {
+      return widget.pipeType;
+    }
+    final catalog = context.read<CatalogController>().pipesFittingCatalog;
+    if (catalog != null) {
+      return resolvePipeTypeForProduct(catalog, _product);
+    }
+    return null;
   }
 
-  void _onTypeChanged(String? type) {
-    if (type == null) return;
-    final groupMatches = _siblingGroups.where((g) => _typeLabelFor(g) == type);
-    if (groupMatches.isEmpty) return;
-    final newGroup = groupMatches.first;
-    if (newGroup == _group) return;
-    final sameSize = newGroup.products.where((p) => p.size == _product.size);
+  List<String> _classOptions(BuildContext context) {
+    final typeName = _resolvedPipeType(context);
+    final canonical = PipeConfiguratorClasses.optionsForType(typeName);
+    if (canonical.isNotEmpty) return canonical;
+
+    final seen = <String>{};
+    final classes = <String>[];
+    for (final g in _familyGroups(context)) {
+      for (final p in g.products) {
+        final name = _productClassLabel(p, g.className).trim();
+        if (name.isEmpty) continue;
+        final key = name.toLowerCase();
+        if (seen.add(key)) classes.add(name);
+      }
+    }
+    classes.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final current = _group.className.trim();
+    if (classes.isEmpty && current.isNotEmpty) classes.add(current);
+    return classes;
+  }
+
+  _CategoryProductGroup? _groupForClass(
+    BuildContext context,
+    String className,
+  ) {
+    final familyKey = _productFamilyKey(
+      _product,
+      subCategory: widget.subCategory,
+    );
+    _CategoryProductGroup? best;
+    var bestScore = -1;
+
+    for (final g in _catalogPool(context)) {
+      if (g.subCategory.toLowerCase() != widget.subCategory.toLowerCase()) {
+        continue;
+      }
+      if (!PipeConfiguratorClasses.matchesCanonical(className, g.className)) {
+        continue;
+      }
+      if (!g.products.any(
+        (p) =>
+            _productFamilyKey(p, subCategory: widget.subCategory) == familyKey,
+      )) {
+        continue;
+      }
+
+      final brandMatches = g.products.where(
+        (p) => _pipeBrandMatches(p.brand, _product.brand),
+      ).length;
+      final score = brandMatches * 1000 + g.products.length;
+      if (score > bestScore) {
+        bestScore = score;
+        best = g;
+      }
+    }
+    if (best != null) return best;
+
+    final titleKey = _normalizeProductFamilyLabel(widget.initialGroup.title);
+    for (final g in _catalogPool(context)) {
+      if (g.subCategory.toLowerCase() != widget.subCategory.toLowerCase()) {
+        continue;
+      }
+      if (!PipeConfiguratorClasses.matchesCanonical(className, g.className)) {
+        continue;
+      }
+      if (_normalizeProductFamilyLabel(g.title) == titleKey) {
+        return g;
+      }
+    }
+    return null;
+  }
+
+
+  PipesFittingProduct? _pickProductForBrand(
+    _CategoryProductGroup group,
+    String brand,
+    String? size,
+  ) {
+    final candidates =
+        group.products.where((p) => _pipeBrandMatches(p.brand, brand)).toList();
+    if (candidates.isEmpty) return null;
+    if (size != null && size.isNotEmpty) {
+      for (final p in candidates) {
+        if (_pipeSizeMatches(p.size, size)) return p;
+      }
+    }
+    return candidates.first;
+  }
+
+  void _onBrandChanged(BuildContext context, String? brand) {
+    if (brand == null || brand.isEmpty) return;
+    final currentSize = _product.size;
+    var nextGroup = _group;
+    var next = _pickProductForBrand(_group, brand, currentSize);
+    if (next == null) {
+      for (final g in _familyGroups(context)) {
+        final candidate = _pickProductForBrand(g, brand, currentSize);
+        if (candidate != null) {
+          nextGroup = g;
+          next = candidate;
+          break;
+        }
+      }
+    }
+    if (next == null) return;
+    setState(() {
+      _group = nextGroup;
+      _product = next!;
+    });
+  }
+
+  void _onSizeChanged(BuildContext context, String size) {
+    for (final g in _groupsForCurrentClass(context)) {
+      for (final p in g.products) {
+        if (_pipeBrandMatches(p.brand, _product.brand) &&
+            _pipeSizeMatches(p.size, size)) {
+          setState(() {
+            _group = g;
+            _product = p;
+          });
+          return;
+        }
+      }
+    }
+    for (final g in _groupsForCurrentClass(context)) {
+      for (final p in g.products) {
+        if (_pipeSizeMatches(p.size, size)) {
+          setState(() {
+            _group = g;
+            _product = p;
+          });
+          return;
+        }
+      }
+    }
+  }
+
+  void _onClassChanged(BuildContext context, String? className) {
+    if (className == null || className.isEmpty) return;
+    final newGroup = _groupForClass(context, className);
+    if (newGroup == null) return;
+    if (PipeConfiguratorClasses.matchesCanonical(
+      className,
+      _group.className,
+    )) {
+      return;
+    }
+
+    final familyKey = _productFamilyKey(
+      _product,
+      subCategory: widget.subCategory,
+    );
+    final targetGroups = _catalogPool(context).where((g) {
+      if (g.subCategory.toLowerCase() != widget.subCategory.toLowerCase()) {
+        return false;
+      }
+      if (!PipeConfiguratorClasses.matchesCanonical(className, g.className)) {
+        return false;
+      }
+      return g.products.any(
+        (p) =>
+            _productFamilyKey(p, subCategory: widget.subCategory) == familyKey,
+      );
+    }).toList();
+
+    final candidates = targetGroups.isNotEmpty ? targetGroups : [newGroup];
+
+    // 1. Both brand and size match
+    for (final g in candidates) {
+      for (final p in g.products) {
+        if (_pipeBrandMatches(p.brand, _product.brand) &&
+            _pipeSizeMatches(p.size, _product.size)) {
+          setState(() {
+            _group = g;
+            _product = p;
+          });
+          return;
+        }
+      }
+    }
+
+    // 2. Brand matches
+    for (final g in candidates) {
+      for (final p in g.products) {
+        if (_pipeBrandMatches(p.brand, _product.brand)) {
+          setState(() {
+            _group = g;
+            _product = p;
+          });
+          return;
+        }
+      }
+    }
+
+    // 3. Size matches
+    for (final g in candidates) {
+      for (final p in g.products) {
+        if (_pipeSizeMatches(p.size, _product.size)) {
+          setState(() {
+            _group = g;
+            _product = p;
+          });
+          return;
+        }
+      }
+    }
+
+    // 4. First product in newGroup
     setState(() {
       _group = newGroup;
-      _product = sameSize.isNotEmpty ? sameSize.first : newGroup.products.first;
+      _product = newGroup.products.first;
     });
   }
 
   void _addToCart() {
-    context.read<CartController>().addVariant(_variantFor(_product, _group));
+    final catalog = context.read<CatalogController>();
+    final categoryId = catalog.pipesCategoryId;
+    final live = _product.id != null ? catalog.variantById(_product.id!) : null;
+    context.read<CartController>().addVariant(
+      live ?? _variantFor(_product, _group, categoryId: categoryId),
+    );
     // The snackbar lives on the root messenger and can outlive this screen,
     // so resolve the navigator now instead of using this State's context later.
     final navigator = Navigator.of(context);
@@ -1844,23 +2700,46 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
   }
 
   String get _title {
+    if (_product.productName.trim().isNotEmpty) {
+      return _product.productName.trim();
+    }
     final code = _product.productCode;
-    final namePart = (code != null && code.isNotEmpty)
+    return (code != null && code.isNotEmpty)
         ? '${code}_${_product.productName}'
         : _product.productName;
-    final details = <String>[
-      _typeLabelFor(_group),
-      if (_product.size != null && _product.size!.isNotEmpty) _product.size!,
-      if (_product.length != null && _product.length!.isNotEmpty)
-        _product.length!,
-    ];
-    final detailText = details.isEmpty ? '' : ', ${details.join(', ')}';
-    return '$namePart$detailText ${_product.brand}';
+  }
+
+  void _reconcileWithLiveCatalog(BuildContext context) {
+    final catalog = context.read<CatalogController>().pipesFittingCatalog;
+    if (catalog == null) return;
+
+    final productId = _product.id?.trim();
+    if (productId == null || productId.isEmpty) return;
+
+    for (final g in _familyGroups(context)) {
+      for (final p in g.products) {
+        if (p.id?.trim() == productId) {
+          if (p.stock != _product.stock ||
+              p.mrp != _product.mrp ||
+              p.sellingPrice != _product.sellingPrice) {
+            setState(() {
+              _group = g;
+              _product = p;
+            });
+          }
+          return;
+        }
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    context.watch<CatalogController>();
     final theme = Theme.of(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _reconcileWithLiveCatalog(context);
+    });
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -1902,33 +2781,48 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
                         borderRadius: AppRadius.mdAll,
                         side: const BorderSide(color: AppColors.outlineVariant),
                       ),
-                      child: InkWell(
-                        onTap: () =>
-                            Navigator.of(context).pushNamed(AppRoutes.search),
-                        borderRadius: AppRadius.mdAll,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.space3,
-                            vertical: AppSpacing.space2,
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.search_rounded,
-                                size: 20,
-                                color: AppColors.outline,
-                              ),
-                              const SizedBox(width: AppSpacing.space2),
-                              Expanded(
-                                child: Text(
-                                  'Search products',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: AppColors.outline,
-                                  ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.space3,
+                          vertical: AppSpacing.space1,
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.search_rounded,
+                              size: 20,
+                              color: AppColors.outline,
+                            ),
+                            const SizedBox(width: AppSpacing.space2),
+                            Expanded(
+                              child: TextField(
+                                textInputAction: TextInputAction.search,
+                                style: theme.textTheme.bodyMedium,
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  filled: false,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  hintText: 'Search products',
+                                  hintStyle: theme.textTheme.bodyMedium
+                                      ?.copyWith(color: AppColors.outline),
+                                  contentPadding: EdgeInsets.zero,
                                 ),
+                                onTap: () => Navigator.of(context).pushNamed(
+                                  AppRoutes.search,
+                                  arguments: const SearchArgs(),
+                                ),
+                                onSubmitted: (query) =>
+                                    Navigator.of(context).pushNamed(
+                                      AppRoutes.search,
+                                      arguments: SearchArgs(
+                                        initialQuery: query,
+                                      ),
+                                    ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -1963,7 +2857,8 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: CategoryImage(
-                        imageAsset: _group.imageAsset,
+                        imageAsset: '',
+                        imageUrl: _product.imageUrl,
                         fallbackIcon: 'plumbing',
                         fallbackIconColor: AppColors.outline,
                         fallbackBackground: AppColors.surfaceContainer,
@@ -1980,86 +2875,72 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.space2),
-                    _ConfiguratorDropdown(
-                      value: _product.size,
-                      options: _sizeOptions,
-                      hint: 'Select size',
-                      onChanged: _sizeOptions.isEmpty ? null : _onSizeChanged,
+                    Text(
+                      'Brand',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.space2),
-                    _ConfiguratorDropdown(
-                      value: _typeLabelFor(_group),
-                      options: _typeOptions,
-                      hint: 'Select type',
-                      onChanged: _typeOptions.length <= 1
-                          ? null
-                          : _onTypeChanged,
+                    ConfiguratorOptionGrid(
+                      options: _brandOptions(context),
+                      selectedOption: _product.brand,
+                      onOptionSelected: (brand) =>
+                          _onBrandChanged(context, brand),
+                      emptyMessage: 'No brands available',
+                    ),
+                    const SizedBox(height: AppSpacing.space4),
+                    Text(
+                      'Class',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.space2),
+                    ConfiguratorOptionGrid(
+                      options: _classOptions(context),
+                      selectedOption: _group.className,
+                      onOptionSelected: (className) =>
+                          _onClassChanged(context, className),
+                      isSelected: (option, selected) =>
+                          selected != null &&
+                          PipeConfiguratorClasses.matchesCanonical(
+                            option,
+                            selected,
+                          ),
+                      emptyMessage: 'No classes available',
+                    ),
+                    const SizedBox(height: AppSpacing.space4),
+                    Text(
+                      'Size',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.space2),
+                    ConfiguratorOptionGrid(
+                      options: _sizeOptions(context),
+                      selectedOption: _product.size,
+                      isSelected: (option, selected) =>
+                          selected != null &&
+                          _pipeSizeMatches(option, selected),
+                      subtitleForOption: null,
+                      onOptionSelected: (size) =>
+                          _onSizeChanged(context, size),
+                      emptyMessage: 'No sizes available',
                     ),
                     const SizedBox(height: AppSpacing.space4),
                     _ConfiguratorAddToCartCard(
                       selectedSizeLabel: _product.size ?? '—',
-                      price: _product.mrp,
+                      price: _product.displayPrice,
                       unit: _group.unit,
-                      onAddToCart: _addToCart,
+                      onAddToCart: _inStock(_product) ? _addToCart : null,
                     ),
                   ],
                 ),
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ConfiguratorDropdown extends StatelessWidget {
-  const _ConfiguratorDropdown({
-    required this.value,
-    required this.options,
-    required this.hint,
-    required this.onChanged,
-  });
-
-  final String? value;
-  final List<String> options;
-  final String hint;
-  final ValueChanged<String?>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final selected = value != null && options.contains(value) ? value : null;
-    final enabled = onChanged != null;
-    final textStyle = theme.textTheme.titleSmall?.copyWith(
-      fontWeight: FontWeight.w700,
-      color: enabled ? AppColors.onBackground : AppColors.disabled,
-    );
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space3),
-      decoration: BoxDecoration(
-        color: enabled ? AppColors.surface : AppColors.disabledContainer,
-        borderRadius: AppRadius.mdAll,
-        border: Border.all(
-          color: enabled ? AppColors.outlineVariant : AppColors.divider,
-        ),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
-          value: selected,
-          hint: Text(hint, style: textStyle),
-          icon: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: enabled ? AppColors.onSurfaceVariant : AppColors.disabled,
-          ),
-          style: textStyle,
-          items: [
-            for (final option in options)
-              DropdownMenuItem<String>(value: option, child: Text(option)),
-          ],
-          onChanged: onChanged,
         ),
       ),
     );
@@ -2077,7 +2958,7 @@ class _ConfiguratorAddToCartCard extends StatelessWidget {
   final String selectedSizeLabel;
   final double price;
   final String unit;
-  final VoidCallback onAddToCart;
+  final VoidCallback? onAddToCart;
 
   @override
   Widget build(BuildContext context) {
@@ -2140,34 +3021,45 @@ class _ConfiguratorAddToCartCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.space2),
-          Material(
-            color: AppColors.accentGreenContainer,
-            borderRadius: AppRadius.lgAll,
-            child: InkWell(
-              onTap: onAddToCart,
+          Flexible(
+            child: Material(
+              color: onAddToCart == null
+                  ? AppColors.disabledContainer
+                  : AppColors.accentGreenContainer,
               borderRadius: AppRadius.lgAll,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.space4,
-                  vertical: AppSpacing.space3,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.add_shopping_cart_rounded,
-                      size: 18,
-                      color: AppColors.onAccentGreenContainer,
+              child: InkWell(
+                onTap: onAddToCart,
+                borderRadius: AppRadius.lgAll,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.space3,
+                    vertical: AppSpacing.space3,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.add_shopping_cart_rounded,
+                          size: 18,
+                          color: onAddToCart == null
+                              ? AppColors.disabled
+                              : AppColors.onAccentGreenContainer,
+                        ),
+                        const SizedBox(width: AppSpacing.space1),
+                        Text(
+                          'Add to Cart',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: onAddToCart == null
+                                ? AppColors.disabled
+                                : AppColors.onAccentGreenContainer,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: AppSpacing.space1),
-                    Text(
-                      'Add to Cart',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.onAccentGreenContainer,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),

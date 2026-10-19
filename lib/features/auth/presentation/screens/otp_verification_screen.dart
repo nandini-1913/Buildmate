@@ -9,7 +9,8 @@ import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/session_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../services/auth_service.dart';
+import '../../../../services/auth_service.dart';
+import '../../services/auth_service.dart' as auth_contract;
 import '../../services/mock_auth_service.dart';
 import '../widgets/auth_otp_fields.dart';
 import '../widgets/login_flow_widgets.dart';
@@ -23,7 +24,7 @@ class OtpVerificationScreen extends StatefulWidget {
   });
 
   final OtpVerificationArgs args;
-  final AuthService? authService;
+  final auth_contract.AuthService? authService;
 
   @override
   State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
@@ -31,7 +32,7 @@ class OtpVerificationScreen extends StatefulWidget {
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final _otpKey = GlobalKey<AuthOtpFieldsState>();
-  late final AuthService _auth;
+  late final auth_contract.AuthService _auth;
   late String _contact;
 
   String _otp = '';
@@ -49,7 +50,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   @override
   void initState() {
     super.initState();
-    _auth = widget.authService ?? MockAuthService();
+    _auth = widget.authService ??
+        (_isPasswordReset
+            ? MockAuthService()
+            : PhoneAuthService.instance);
     _contact = widget.args.contactDisplay;
     _startTimer();
   }
@@ -127,14 +131,23 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   Future<void> _resend() async {
-    await _auth.sendOtp(mobileNumber: _rawMobile);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final result = await _auth.sendOtp(mobileNumber: _rawMobile);
     if (!mounted) return;
+    setState(() => _loading = false);
+    if (!result.success) {
+      setState(() => _error = result.message ?? 'Could not resend OTP.');
+      return;
+    }
     _otpKey.currentState?.clear();
-    setState(() => _error = null);
     _startTimer();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Verification code resent (use 123456)'),
+        content: Text('A new verification code has been sent.'),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }

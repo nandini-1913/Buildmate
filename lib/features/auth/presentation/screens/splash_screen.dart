@@ -23,10 +23,11 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _navigate() async {
+    final session = context.read<SessionController>();
     await Future<void>.delayed(AppConstants.splashDuration);
+    await session.restore();
     if (!mounted) return;
 
-    final session = context.read<SessionController>();
     final nextRoute = session.isLoggedIn
         ? AppRoutes.homePlaceholder
         : AppRoutes.login;

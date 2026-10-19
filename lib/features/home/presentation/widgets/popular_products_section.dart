@@ -1,64 +1,87 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../../core/state/cart_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_elevation.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/catalog_widgets.dart';
 import '../../../../shared/widgets/category_image.dart';
-import '../../../catalog/data/mock/catalog_mock_data.dart';
 import '../../../catalog/domain/models/catalog_models.dart';
 import 'home_section_header.dart';
 
 class PopularProductsSection extends StatelessWidget {
   const PopularProductsSection({
     super.key,
-    required this.products,
+    required this.variants,
     this.onViewAll,
-    this.onProductTap,
+    this.onVariantTap,
+    this.isLoading = false,
   });
 
-  final List<CatalogProduct> products;
+  final List<ProductVariant> variants;
   final VoidCallback? onViewAll;
-  final void Function(CatalogProduct product)? onProductTap;
+  final void Function(ProductVariant variant)? onVariantTap;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
-    final visible = products.take(6).toList();
+    final visible = variants.take(6).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         HomeSectionHeader(title: 'Popular Products', onViewAll: onViewAll),
         const SizedBox(height: AppSpacing.space3),
-        for (var i = 0; i < visible.length; i++) ...[
-          if (i > 0) const SizedBox(height: AppSpacing.space3),
-          ProductListCard(
-            product: visible[i],
-            onTap: () => onProductTap?.call(visible[i]),
-          ),
-        ],
+        if (isLoading && visible.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.space6),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          )
+        else if (visible.isEmpty)
+          const Text(
+            'No popular products from server yet.',
+            style: TextStyle(color: AppColors.onSurfaceVariant),
+          )
+        else
+          for (var i = 0; i < visible.length; i++) ...[
+            if (i > 0) const SizedBox(height: AppSpacing.space3),
+            PopularProductCard(
+              variant: visible[i],
+              onTap: () => onVariantTap?.call(visible[i]),
+            ),
+          ],
       ],
     );
   }
 }
 
-class ProductListCard extends StatelessWidget {
-  const ProductListCard({
+class PopularProductCard extends StatelessWidget {
+  const PopularProductCard({
     super.key,
-    required this.product,
+    required this.variant,
     this.onTap,
   });
 
-  final CatalogProduct product;
+  final ProductVariant variant;
   final VoidCallback? onTap;
+
+  void _addToCart(BuildContext context) {
+    if (!variant.inStock) return;
+    context.read<CartController>().addVariant(variant);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${variant.displayName} added to cart'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final from = CatalogMockData.cheapestVariantFor(product.id);
-    final brandName = from?.brandName ?? product.categoryName;
-    final inStock = from?.inStock ?? true;
 
     return Material(
       color: AppColors.surface,
@@ -81,8 +104,9 @@ class ProductListCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   CategoryImage(
-                    imageAsset: product.imageAsset,
-                    fallbackIcon: product.icon,
+                    imageAsset: '',
+                    imageUrl: variant.imageUrl,
+                    fallbackIcon: variant.icon,
                     fallbackIconColor: AppColors.primary,
                     fallbackBackground: AppColors.surfaceContainer,
                     width: AppSpacing.space14,
@@ -97,43 +121,56 @@ class ProductListCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          brandName,
+                          variant.brandName,
                           style: theme.textTheme.labelMedium?.copyWith(
                             color: AppColors.primary,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                         Text(
-                          product.name,
+                          variant.productName,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.titleSmall,
                         ),
                         Text(
-                          product.specSummary,
+                          variant.specSummary.isNotEmpty
+                              ? variant.specSummary
+                              : (variant.pipeType ?? ''),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall,
                         ),
                         const SizedBox(height: AppSpacing.space2),
                         Text(
-                          from == null
-                              ? product.priceWithUnit
-                              : '${from.priceLabel} / ${product.unit}',
+                          '${variant.priceLabel} / ${variant.unit}',
                           style: theme.textTheme.titleSmall?.copyWith(
                             color: AppColors.primary,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                         const SizedBox(height: AppSpacing.space1),
-                        StockStatusChip(inStock: inStock),
+                        StockStatusChip(inStock: variant.inStock),
                       ],
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: AppSpacing.space3),
+<<<<<<< Updated upstream
               ProductActionBar(product: product, compact: true),
+=======
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: variant.inStock ? () => _addToCart(context) : null,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 40),
+                  ),
+                  child: const Text('Add to cart'),
+                ),
+              ),
+>>>>>>> Stashed changes
             ],
           ),
         ),

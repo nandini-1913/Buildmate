@@ -1,15 +1,17 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' hide Category;
 
 import '../../features/catalog/data/mappers/catalog_api_mapper.dart';
-import '../../features/catalog/data/mock/catalog_mock_data.dart';
+import '../../features/catalog/data/models/api_catalog_product.dart';
 import '../../features/catalog/data/repositories/catalog_repository.dart';
 import '../../features/catalog/domain/models/catalog_models.dart';
+import '../../features/catalog/domain/models/pipes_fitting_catalog_models.dart';
+import '../network/api_config.dart';
 
-/// API-backed catalog state with safe polling for the Pipes & Tubing demo.
+/// API-backed catalog state with polling for live Pipes & Fitting data.
 ///
-/// Falls back to [CatalogMockData] when the API is unavailable on first load.
+/// Also powers Home categories / featured / popular from the same backend.
 class CatalogController extends ChangeNotifier {
   CatalogController({CatalogRepository? repository})
       : _repository = repository ?? CatalogRepository();
@@ -19,13 +21,18 @@ class CatalogController extends ChangeNotifier {
   Timer? _pollTimer;
   bool _disposed = false;
   bool _isLoading = false;
+  bool _isHomeLoading = false;
   bool _isPolling = false;
   String? _error;
   bool _useApi = false;
   List<ProductVariant> _apiVariants = const [];
+  List<Category> _categories = const [];
+  PipesFittingCatalog? _pipesFittingCatalog;
+  Map<String, String> _pipeMaterialTypeImages = const {};
   String _apiSyncToken = '';
 
   bool get isLoading => _isLoading;
+  bool get isHomeLoading => _isHomeLoading;
   String? get error => _error;
   bool get isUsingApi => _useApi;
   bool get isPolling => _isPolling;
@@ -41,6 +48,98 @@ class CatalogController extends ChangeNotifier {
         .toList();
   }
 
+  /// Live categories for Home / category grids.
+  List<Category> get homeCategories => _categories;
+
+  /// Hierarchical catalog for the Pipes & Fitting category screen.
+  PipesFittingCatalog? get pipesFittingCatalog => _pipesFittingCatalog;
+
+  /// `GET /api/subcategories` images keyed for UPVC / CPVC / PVC type tiles.
+  Map<String, String> get pipeMaterialTypeImages => _pipeMaterialTypeImages;
+
+  /// Resolved server URL for a pipes sidebar **Type** row.
+  String? pipeTypeSidebarImageUrl(
+    String typeName, {
+    String? catalogFallbackUrl,
+  }) {
+    return CatalogApiMapper.typeSidebarImageUrl(
+      typeName,
+      _pipeMaterialTypeImages,
+      catalogFallbackUrl: catalogFallbackUrl,
+    );
+  }
+
+  /// Featured strip: highest discount first, then price.
+  List<ProductVariant> get featuredVariants {
+    final list = List<ProductVariant>.from(_apiVariants);
+    list.sort((a, b) {
+      final ad = a.discountRate ?? 0;
+      final bd = b.discountRate ?? 0;
+      final byDiscount = bd.compareTo(ad);
+      if (byDiscount != 0) return byDiscount;
+      return a.price.compareTo(b.price);
+    });
+    return list.take(12).toList();
+  }
+
+  /// Popular strip: in-stock first, then by name.
+  List<ProductVariant> get popularVariants {
+    final list = List<ProductVariant>.from(_apiVariants);
+    list.sort((a, b) {
+      final stockCmp = (b.inStock ? 1 : 0).compareTo(a.inStock ? 1 : 0);
+      if (stockCmp != 0) return stockCmp;
+      return a.productName.compareTo(b.productName);
+    });
+    return list.take(12).toList();
+  }
+
+  List<CatalogProduct> get featuredProducts =>
+      featuredVariants.map(CatalogApiMapper.productFromVariant).toList();
+
+  List<CatalogProduct> get popularProducts =>
+      popularVariants.map(CatalogApiMapper.productFromVariant).toList();
+
+  ProductVariant? variantById(String id) {
+    for (final v in _apiVariants) {
+      if (v.id == id) return v;
+    }
+    return null;
+  }
+
+  /// Live product/brand/SKU search for the global Search screen.
+  List<ProductVariant> searchVariants(String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return const [];
+    return _apiVariants.where((v) {
+      return v.productName.toLowerCase().contains(q) ||
+          v.displayName.toLowerCase().contains(q) ||
+          v.brandName.toLowerCase().contains(q) ||
+          v.sku.toLowerCase().contains(q) ||
+          v.categoryName.toLowerCase().contains(q) ||
+          v.subCategoryName.toLowerCase().contains(q) ||
+          (v.pipeType?.toLowerCase().contains(q) ?? false) ||
+          v.specSummary.toLowerCase().contains(q);
+    }).toList();
+  }
+
+  /// Category name matches for search results.
+  List<Category> searchCategories(String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return const [];
+    return _categories
+        .where((c) => c.name.toLowerCase().contains(q))
+        .toList();
+  }
+
+  /// Variants for a product id (API productCode or variant id).
+  List<ProductVariant> variantsForProduct(String productId) {
+    final byProduct =
+        _apiVariants.where((v) => v.productId == productId).toList();
+    if (byProduct.isNotEmpty) return byProduct;
+    final single = variantById(productId);
+    return single == null ? const [] : [single];
+  }
+
   List<ProductVariant> pipeVariantsForSubCategory(String? subCategoryId) {
     final all = pipeVariants;
     if (subCategoryId == null) return all;
@@ -48,6 +147,7 @@ class CatalogController extends ChangeNotifier {
   }
 
   Brand? brandById(String brandId) {
+<<<<<<< Updated upstream
     final fromApi = _brandsFromVariants()
         .where((b) => b.id == brandId)
         .firstOrNull;
@@ -67,16 +167,283 @@ class CatalogController extends ChangeNotifier {
       }
     }
     return result;
+=======
+    return _brandsFromVariants().where((b) => b.id == brandId).firstOrNull;
   }
 
-  /// Initial load + starts 3-second polling (idempotent).
+  List<Brand> brandsForPipeCategory() => catalogBrands;
+
+  /// All brands derived from live catalog variants.
+  List<Brand> get catalogBrands => _brandsFromVariants();
+
+  Category? categoryById(String id) {
+    for (final c in _categories) {
+      if (c.id == id) return c;
+    }
+    return null;
+>>>>>>> Stashed changes
+  }
+
+  String? _pipesCategoryId() {
+    for (final c in _categories) {
+      if (CatalogApiMapper.isPipesCategory(c.name)) {
+        return c.id;
+      }
+    }
+    return null;
+  }
+
+  String? get pipesCategoryId => _pipesCategoryId();
+
+  List<ProductVariant> variantsByBrand(String brandId) =>
+      _apiVariants.where((v) => v.brandId == brandId).toList();
+
+  List<ProductVariant> variantsForCategory(String categoryId) =>
+      _apiVariants.where((v) => v.categoryId == categoryId).toList();
+
+  CatalogProduct? productById(String id) {
+    final direct = variantById(id);
+    if (direct != null) return CatalogApiMapper.productFromVariant(direct);
+    final group = variantsForProduct(id);
+    if (group.isEmpty) return null;
+    return CatalogApiMapper.productFromVariant(group.first);
+  }
+
+  ProductVariant? cheapestVariantFor(String productId) {
+    final list = List<ProductVariant>.from(variantsForProduct(productId));
+    if (list.isEmpty) return null;
+    list.sort((a, b) => a.price.compareTo(b.price));
+    return list.first;
+  }
+
+  List<SubCategory> subCategoriesFor(String categoryId) {
+    final map = <String, SubCategory>{};
+    for (final v in variantsForCategory(categoryId)) {
+      map.putIfAbsent(
+        v.subCategoryId,
+        () => SubCategory(
+          id: v.subCategoryId,
+          categoryId: categoryId,
+          name: v.subCategoryName,
+        ),
+      );
+    }
+    final counts = <String, int>{};
+    for (final v in variantsForCategory(categoryId)) {
+      counts[v.subCategoryId] = (counts[v.subCategoryId] ?? 0) + 1;
+    }
+    return map.values
+        .map(
+          (s) => SubCategory(
+            id: s.id,
+            categoryId: s.categoryId,
+            name: s.name,
+            productCount: counts[s.id] ?? 0,
+          ),
+        )
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  List<Brand> brandsForCategory(String categoryId) {
+    final ids = variantsForCategory(categoryId).map((v) => v.brandId).toSet();
+    return catalogBrands.where((b) => ids.contains(b.id)).toList();
+  }
+
+  List<CatalogProduct> productsForCategory(String categoryId) =>
+      _distinctProducts(variantsForCategory(categoryId));
+
+  List<CatalogProduct> get allCatalogProducts =>
+      _distinctProducts(_apiVariants);
+
+  List<CatalogProduct> filterCatalogProducts({
+    required List<CatalogProduct> source,
+    String? subCategoryId,
+    String? brandId,
+    String? size,
+    String? material,
+    ProductSort sort = ProductSort.popularity,
+  }) {
+    var list = List<CatalogProduct>.from(source);
+    if (subCategoryId != null && subCategoryId.isNotEmpty) {
+      list = list.where((p) => p.subCategoryId == subCategoryId).toList();
+    }
+    if (size != null && size.isNotEmpty) {
+      final needle = size.toLowerCase();
+      list = list.where((p) {
+        final specSize = (p.specifications['Size'] ?? '').toLowerCase();
+        return specSize.contains(needle) ||
+            p.specSummary.toLowerCase().contains(needle);
+      }).toList();
+    }
+    if (material != null && material.isNotEmpty) {
+      final needle = material.toLowerCase();
+      list = list.where((p) {
+        final m = (p.specifications['Material'] ?? '').toLowerCase();
+        return m.contains(needle);
+      }).toList();
+    }
+    if (brandId != null && brandId.isNotEmpty) {
+      list = list.where((p) {
+        return variantsForProduct(p.id).any((v) => v.brandId == brandId);
+      }).toList();
+    }
+
+    switch (sort) {
+      case ProductSort.popularity:
+        list.sort((a, b) {
+          final pa = (a.isPopular ? 2 : 0) + (a.isFeatured ? 1 : 0);
+          final pb = (b.isPopular ? 2 : 0) + (b.isFeatured ? 1 : 0);
+          if (pb != pa) return pb.compareTo(pa);
+          return a.name.compareTo(b.name);
+        });
+      case ProductSort.priceLowHigh:
+        list.sort((a, b) => a.basePrice.compareTo(b.basePrice));
+      case ProductSort.priceHighLow:
+        list.sort((a, b) => b.basePrice.compareTo(a.basePrice));
+      case ProductSort.newest:
+        break;
+      case ProductSort.brandAz:
+        list.sort((a, b) {
+          final va = cheapestVariantFor(a.id);
+          final vb = cheapestVariantFor(b.id);
+          return (va?.brandName ?? '').compareTo(vb?.brandName ?? '');
+        });
+    }
+    return list;
+  }
+
+  List<String> sizeOptionsForCategory(String categoryId) {
+    final values = <String>{};
+    for (final v in variantsForCategory(categoryId)) {
+      final size = v.specifications['Size']?.trim() ?? '';
+      if (size.isNotEmpty) values.add(size);
+    }
+    final sorted = values.toList()..sort();
+    return sorted;
+  }
+
+  List<String> attributeOptionsForCategory(
+    String categoryId,
+    String attributeKey,
+  ) {
+    final values = <String>{};
+    for (final v in variantsForCategory(categoryId)) {
+      final value = v.specifications[attributeKey]?.trim() ?? '';
+      if (value.isNotEmpty) values.add(value);
+    }
+    final sorted = values.toList()..sort();
+    return sorted;
+  }
+
+  List<CatalogProduct> compatibleProductsFor(
+    CatalogProduct product, {
+    String? sizeFilter,
+  }) {
+    var list = allCatalogProducts
+        .where((p) => p.categoryId == product.categoryId && p.id != product.id)
+        .toList();
+    final size = sizeFilter?.trim();
+    if (size != null && size.isNotEmpty) {
+      final needle = size.toLowerCase();
+      list = list.where((p) {
+        final specSize = (p.specifications['Size'] ?? '').toLowerCase();
+        final summary = p.specSummary.toLowerCase();
+        final name = p.name.toLowerCase();
+        return specSize.contains(needle) ||
+            summary.contains(needle) ||
+            name.contains(needle);
+      }).toList();
+    }
+    return list.take(12).toList();
+  }
+
+  /// Discounted products surfaced as promotional offers.
+  List<Offer> get catalogOffers {
+    final discounted = _apiVariants
+        .where((v) => (v.discountRate ?? 0) > 0)
+        .toList();
+    discounted.sort(
+      (a, b) => (b.discountRate ?? 0).compareTo(a.discountRate ?? 0),
+    );
+    return discounted.take(24).map((v) {
+      final pct = ((v.discountRate ?? 0) * 100).round();
+      return Offer(
+        id: v.id,
+        title: v.productName,
+        description: '${v.brandName} · ${v.displayName}',
+        discountText: '$pct% OFF',
+        validUntil: '',
+        productIds: [v.id],
+      );
+    }).toList();
+  }
+
+  Offer? offerById(String offerId) {
+    for (final o in catalogOffers) {
+      if (o.id == offerId) return o;
+    }
+    return null;
+  }
+
+  List<CatalogProduct> _distinctProducts(List<ProductVariant> variants) {
+    final byKey = <String, ProductVariant>{};
+    for (final v in variants) {
+      final key = v.productId;
+      final existing = byKey[key];
+      if (existing == null || v.price < existing.price) {
+        byKey[key] = v;
+      }
+    }
+    return byKey.values.map(CatalogApiMapper.productFromVariant).toList();
+  }
+
+  /// Loads categories + catalog once for Home, then starts polling.
+  Future<void> refreshHomeCatalog({bool showLoading = true}) async {
+    if (_disposed) return;
+    if (showLoading) {
+      _isHomeLoading = true;
+      notifyListeners();
+    }
+
+    try {
+      final categoriesFuture = _repository.fetchCategories();
+      final catalogFuture = _repository.fetchPipeCatalog();
+      final categories = await categoriesFuture;
+      final items = await catalogFuture;
+      if (_disposed) return;
+
+      _categories = categories;
+      await _applyCatalogItems(items);
+      _error = null;
+      notifyListeners();
+    } catch (e) {
+      if (_disposed) return;
+      _error = e.toString();
+      if (_apiVariants.isEmpty && _categories.isEmpty) {
+        _useApi = false;
+      }
+      notifyListeners();
+    } finally {
+      if (!_disposed && showLoading) {
+        _isHomeLoading = false;
+        notifyListeners();
+      }
+    }
+
+    await startPipeCatalogSync();
+  }
+
+  /// Initial load + starts polling (idempotent).
   Future<void> startPipeCatalogSync() async {
     if (_isPolling) return;
     _isPolling = true;
-    await refreshPipeCatalog(showLoading: _apiVariants.isEmpty);
+    if (_apiVariants.isEmpty) {
+      await refreshPipeCatalog(showLoading: true);
+    }
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(
-      const Duration(seconds: 3),
+      ApiConfig.catalogPollInterval,
       (_) => refreshPipeCatalog(showLoading: false),
     );
   }
@@ -95,28 +462,34 @@ class CatalogController extends ChangeNotifier {
     }
 
     try {
-      final items = await _repository.fetchPipeCatalog();
+      final catalogFuture = _repository.fetchPipeCatalog();
+      final categoriesFuture = _repository.fetchCategories();
+      final items = await catalogFuture;
       if (_disposed) return;
 
-      final nextVariants = CatalogApiMapper.toVariants(items);
-      final nextToken = _buildSyncToken(nextVariants);
+      try {
+        final cats = await categoriesFuture;
+        if (!_disposed && cats.isNotEmpty) {
+          _categories = cats;
+        }
+      } catch (_) {
+        // Keep last good categories.
+      }
 
-      if (nextToken != _apiSyncToken) {
-        _apiSyncToken = nextToken;
-        _apiVariants = nextVariants;
-        _useApi = nextVariants.isNotEmpty;
-        _error = null;
+      final changed = await _applyCatalogItems(items);
+
+      if (_useApi) _error = null;
+      if (changed || _categories.isNotEmpty) {
         notifyListeners();
-      } else if (_useApi) {
-        _error = null;
       }
     } catch (e) {
       if (_disposed) return;
       _error = e.toString();
       if (_apiVariants.isEmpty) {
         _useApi = false;
-        notifyListeners();
+        _pipesFittingCatalog = null;
       }
+      notifyListeners();
     } finally {
       if (!_disposed && showLoading) {
         _isLoading = false;
@@ -125,19 +498,63 @@ class CatalogController extends ChangeNotifier {
     }
   }
 
-  String _buildSyncToken(List<ProductVariant> variants) {
-    return variants.map((v) {
-      return [
-        v.id,
-        v.sku,
-        v.price,
-        v.stockStatus.name,
-        v.mrp,
-        v.discountRate,
-        v.imageUrl ?? '',
-        v.pipeType ?? '',
-      ].join(':');
-    }).join('|');
+  Future<Map<String, String>> _loadPipeMaterialImages() async {
+    final fromTree = await _repository.fetchPipeTypeImagesFromTree();
+    if (fromTree.isNotEmpty) return fromTree;
+
+    final categoryId = _pipesCategoryId();
+    if (categoryId == null || categoryId.isEmpty) return const {};
+    try {
+      final subs = await _repository.fetchSubcategories(categoryId: categoryId);
+      return CatalogApiMapper.materialImagesFromSubcategories(subs);
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Returns true when variants/tree changed.
+  Future<bool> _applyCatalogItems(List<ApiCatalogProduct> items) async {
+    final categoryId = _pipesCategoryId() ?? '';
+    final materialImages = await _loadPipeMaterialImages();
+    final materialImagesChanged =
+        !_materialImageMapsEqual(_pipeMaterialTypeImages, materialImages);
+    _pipeMaterialTypeImages = materialImages;
+
+    final nextVariants =
+        CatalogApiMapper.toVariants(items, categoryId: categoryId);
+    final nextTree = CatalogApiMapper.toPipesFittingCatalog(
+      items,
+      materialImagesByName: materialImages,
+    );
+    final nextToken = items.map((e) => e.syncFingerprint).join('|');
+
+    if (nextToken == _apiSyncToken && _apiVariants.isNotEmpty) {
+      if (materialImagesChanged) {
+        _pipesFittingCatalog = nextTree;
+        return true;
+      }
+      return false;
+    }
+
+    _apiSyncToken = nextToken;
+    _apiVariants = nextVariants;
+    _pipesFittingCatalog = nextTree;
+    _useApi = nextVariants.isNotEmpty;
+    if (nextVariants.isEmpty) {
+      _error = 'No products available from server';
+    }
+    return true;
+  }
+
+  bool _materialImageMapsEqual(
+    Map<String, String> a,
+    Map<String, String> b,
+  ) {
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      if (b[entry.key] != entry.value) return false;
+    }
+    return true;
   }
 
   List<Brand> _brandsFromVariants() {
@@ -154,10 +571,8 @@ class CatalogController extends ChangeNotifier {
         ),
       );
     }
-    final brands = map.values.toList();
-    for (final brand in brands) {
-      final count =
-          _apiVariants.where((v) => v.brandId == brand.id).length;
+    for (final brand in map.values.toList()) {
+      final count = _apiVariants.where((v) => v.brandId == brand.id).length;
       map[brand.id] = Brand(
         id: brand.id,
         name: brand.name,
@@ -166,8 +581,7 @@ class CatalogController extends ChangeNotifier {
         productCount: count,
       );
     }
-    return map.values.toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
+    return map.values.toList()..sort((a, b) => a.name.compareTo(b.name));
   }
 
   String _abbreviation(String name) {

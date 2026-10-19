@@ -8,7 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
-import '../../features/catalog/data/mock/catalog_mock_data.dart';
+import '../../core/state/catalog_controller.dart';
 import '../../features/catalog/domain/models/catalog_models.dart';
 
 /// Compact stock status chip used across catalog UIs.
@@ -62,7 +62,7 @@ Future<ProductVariant?> showBrandPicker(
   BuildContext context, {
   required CatalogProduct product,
 }) {
-  final variants = CatalogMockData.variantsByProduct(product.id);
+  final variants = context.read<CatalogController>().variantsForProduct(product.id);
   if (variants.isEmpty) return Future.value(null);
   if (variants.length == 1) return Future.value(variants.first);
 

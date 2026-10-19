@@ -43,6 +43,7 @@ class HomeBanner {
     required this.icon,
     required this.gradientStart,
     required this.gradientEnd,
+    this.referralStyle = false,
   });
 
   final String id;
@@ -54,6 +55,9 @@ class HomeBanner {
   final String icon;
   final int gradientStart;
   final int gradientEnd;
+
+  /// Lime promo layout (refer & earn) instead of gradient hero card.
+  final bool referralStyle;
 }
 
 class QuickAction {
@@ -83,6 +87,7 @@ class HomeCategory {
     required this.iconColor,
     required this.iconBackground,
     this.imageAsset = '',
+    this.imageUrl,
   });
 
   final String id;
@@ -93,6 +98,8 @@ class HomeCategory {
   final int iconBackground;
   /// Local asset path for category product imagery (empty = use [icon]).
   final String imageAsset;
+  /// Remote category image from backend (preferred over [imageAsset]).
+  final String? imageUrl;
 }
 
 class HomeProduct {

@@ -13,6 +13,7 @@ class HomeLocationBar extends StatelessWidget {
     super.key,
     required this.label,
     required this.address,
+    this.isLoading = false,
     this.onTap,
   });
 
@@ -22,6 +23,7 @@ class HomeLocationBar extends StatelessWidget {
   /// Full address line, truncated with an ellipsis if too long.
   final String address;
 
+  final bool isLoading;
   final VoidCallback? onTap;
 
   @override
@@ -45,11 +47,18 @@ class HomeLocationBar extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(
-                Icons.location_on_rounded,
-                size: 20,
-                color: AppColors.primary,
-              ),
+              if (isLoading)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                const Icon(
+                  Icons.location_on_rounded,
+                  size: 20,
+                  color: AppColors.primary,
+                ),
               const SizedBox(width: AppSpacing.space2),
               Expanded(
                 child: Text.rich(

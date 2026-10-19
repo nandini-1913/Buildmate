@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/routes/app_router.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/state/cart_controller.dart';
@@ -66,8 +67,9 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    final rewardMessage =
-        context.watch<RewardController>().lastCustomerRewardMessage;
+    final rewardMessage = context
+        .watch<RewardController>()
+        .lastCustomerRewardMessage;
     final index = _tabIndex.value;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -82,23 +84,31 @@ class _MainShellState extends State<MainShell> {
       context.read<RewardController>().clearCustomerRewardMessage();
     });
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Navigator(
-        key: _shellNavKey,
-        initialRoute: '/',
-        observers: [_navObserver],
-        onGenerateRoute: (settings) {
-          if (settings.name == '/' ||
-              settings.name == AppRoutes.homePlaceholder ||
-              settings.name == AppRoutes.main ||
-              settings.name == null) {
-            return MaterialPageRoute<void>(
-              settings: settings,
-              builder: (_) => _ShellTabs(tabIndex: _tabIndex),
-            );
-          }
+    return PopScope<void>(
+      canPop: !_hasPushedRoute,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _hasPushedRoute) {
+          _shellNavKey.currentState?.maybePop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: Navigator(
+          key: _shellNavKey,
+          initialRoute: '/',
+          observers: [_navObserver],
+          onGenerateRoute: (settings) {
+            if (settings.name == '/' ||
+                settings.name == AppRoutes.homePlaceholder ||
+                settings.name == AppRoutes.main ||
+                settings.name == null) {
+              return MaterialPageRoute<void>(
+                settings: settings,
+                builder: (_) => _ShellTabs(tabIndex: _tabIndex),
+              );
+            }
 
+<<<<<<< Updated upstream
           return AppRouter.onGenerateRoute(settings);
         },
       ),
@@ -119,6 +129,54 @@ class _MainShellState extends State<MainShell> {
         currentIndex: index,
         onTap: _onTabTap,
       ),
+=======
+            // Escalate auth routes to the root navigator so sign-out / login
+            // never remount the shell tabs by mistake.
+            if (settings.name == AppRoutes.splash ||
+                settings.name == AppRoutes.login ||
+                settings.name == AppRoutes.createAccount) {
+              final routeName = settings.name!;
+              final args = settings.arguments;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                Navigator.of(
+                  context,
+                  rootNavigator: true,
+                ).pushNamedAndRemoveUntil(
+                  routeName,
+                  (_) => false,
+                  arguments: args,
+                );
+              });
+              return MaterialPageRoute<void>(
+                settings: settings,
+                builder: (_) => const SizedBox.shrink(),
+              );
+            }
+
+            return AppRouter.onGenerateRoute(settings);
+          },
+        ),
+        floatingActionButton:
+            AppConstants.aiAssistantEnabled && index == 0 && !_hasPushedRoute
+            ? FloatingActionButton(
+                onPressed: () => _openInShell(AppRoutes.aiAssistant),
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.onPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                tooltip: 'AI Assistant',
+                child: const Icon(Icons.auto_awesome_rounded),
+              )
+            : null,
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+        // bottomNavigationBar: AppBottomNavigation(
+        //   currentIndex: index,
+        //   onTap: _onTabTap,
+        // ),
+      ),
+>>>>>>> Stashed changes
     );
   }
 }
@@ -138,10 +196,7 @@ class _ShellTabs extends StatelessWidget {
           children: const [
             HomeDashboardScreen(),
             CategoriesTabBody(),
-            _TabScaffold(
-              title: 'Wishlist',
-              child: WishlistScreenBody(),
-            ),
+            _TabScaffold(title: 'Wishlist', child: WishlistScreenBody()),
             _QuotationTab(),
             ProfileTabBody(),
           ],
@@ -200,9 +255,9 @@ class _QuotationTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final cart = context.watch<CartController>();
     final session = context.watch<SessionController>();
-    final quotations = context
-        .watch<QuotationController>()
-        .forRequester(session.user.id);
+    final quotations = context.watch<QuotationController>().forRequester(
+      session.user.id,
+    );
     final theme = Theme.of(context);
 
     return _TabScaffold(
@@ -254,10 +309,7 @@ class _QuotationTab extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.space3),
           if (quotations.isEmpty)
-            Text(
-              'No quotations yet.',
-              style: theme.textTheme.bodyMedium,
-            )
+            Text('No quotations yet.', style: theme.textTheme.bodyMedium)
           else
             ...quotations.map(
               (q) => Container(

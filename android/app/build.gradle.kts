@@ -2,11 +2,17 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")
 }
 
 android {
+<<<<<<< Updated upstream
     namespace = "com.example.customerapp"
     compileSdk = flutter.compileSdkVersion
+=======
+    namespace = "com.buildmate.customerapp"
+    compileSdk = 36
+>>>>>>> Stashed changes
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -16,10 +22,10 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.customerapp"
+        applicationId = "com.buildmate.customerapp"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

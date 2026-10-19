@@ -18,6 +18,20 @@ abstract final class HomeMockData {
 
   static const List<HomeBanner> banners = [
     HomeBanner(
+      id: 'banner-refer',
+      eyebrow: '',
+      headline: 'Refer Friend & Earn ₹250!',
+      description:
+          'Invite your friends to BuildMate. You both get ₹250 cashback '
+          'when they place their first order.',
+      ctaLabel: 'Invite Friends',
+      routeName: AppRoutes.myRewards,
+      icon: 'card_giftcard',
+      gradientStart: 0xFFE8F5B0,
+      gradientEnd: 0xFFE8F5B0,
+      referralStyle: true,
+    ),
+    HomeBanner(
       id: 'banner-pipes',
       eyebrow: 'FEATURED COLLECTION',
       headline: 'Premium Pipes Collection',
@@ -29,15 +43,15 @@ abstract final class HomeMockData {
       gradientEnd: 0xFF0891B2,
     ),
     HomeBanner(
-      id: 'banner-cement',
+      id: 'banner-sanitary',
       eyebrow: 'FEATURED COLLECTION',
-      headline: 'Top Cement Brands',
-      description: 'UltraTech, ACC, Ambuja & 40+ brands at best prices',
-      ctaLabel: 'Shop Cement',
+      headline: 'Top Sanitary Brands',
+      description: 'Cera, Hindware, Jaquar & more premium bath fittings',
+      ctaLabel: 'Shop Sanitary',
       routeName: AppRoutes.categories,
-      icon: 'inventory_2',
-      gradientStart: 0xFF374151,
-      gradientEnd: 0xFF4B5563,
+      icon: 'water_drop',
+      gradientStart: 0xFF0E7490,
+      gradientEnd: 0xFF0891B2,
     ),
     HomeBanner(
       id: 'banner-offers',

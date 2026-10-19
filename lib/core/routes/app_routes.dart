@@ -104,9 +104,21 @@ class ResetPasswordArgs {
   final bool isEmail;
 }
 
+class SearchArgs {
+  const SearchArgs({this.initialQuery});
+
+  final String? initialQuery;
+}
+
 class CategoryBrowseArgs {
-  const CategoryBrowseArgs({required this.categoryId});
+  const CategoryBrowseArgs({
+    required this.categoryId,
+    this.categoryName,
+  });
+
   final String categoryId;
+  /// Optional display name from live API (used to route pipes categories).
+  final String? categoryName;
 }
 
 class ProductListArgs {

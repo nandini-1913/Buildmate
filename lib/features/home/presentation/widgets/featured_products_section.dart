@@ -1,27 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../../core/state/cart_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_elevation.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/catalog_widgets.dart';
 import '../../../../shared/widgets/category_image.dart';
-import '../../../catalog/data/mock/catalog_mock_data.dart';
 import '../../../catalog/domain/models/catalog_models.dart';
 import 'home_section_header.dart';
 
 class FeaturedProductsSection extends StatelessWidget {
   const FeaturedProductsSection({
     super.key,
-    required this.products,
+    required this.variants,
     this.onViewAll,
-    this.onProductTap,
+    this.onVariantTap,
+    this.isLoading = false,
   });
 
-  final List<CatalogProduct> products;
+  final List<ProductVariant> variants;
   final VoidCallback? onViewAll;
-  final void Function(CatalogProduct product)? onProductTap;
+  final void Function(ProductVariant variant)? onVariantTap;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -37,45 +39,76 @@ class FeaturedProductsSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.space3),
-        SizedBox(
-          height: 348,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-            itemCount: products.length,
-            separatorBuilder: (_, _) =>
-                const SizedBox(width: AppSpacing.space3),
-            itemBuilder: (context, index) {
-              final product = products[index];
-              return FeaturedProductCard(
-                product: product,
-                onTap: () => onProductTap?.call(product),
-              );
-            },
+        if (isLoading && variants.isEmpty)
+          const SizedBox(
+            height: 120,
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          )
+        else if (variants.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.space4),
+            child: Text(
+              'No featured products from server yet.',
+              style: TextStyle(color: AppColors.onSurfaceVariant),
+            ),
+          )
+        else
+          SizedBox(
+            height: 228,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
+              itemCount: variants.length,
+              separatorBuilder: (_, _) =>
+                  const SizedBox(width: AppSpacing.space3),
+              itemBuilder: (context, index) {
+                final variant = variants[index];
+                return FeaturedProductCard(
+                  variant: variant,
+                  onTap: () => onVariantTap?.call(variant),
+                );
+              },
+            ),
           ),
-        ),
       ],
     );
   }
 }
 
 class FeaturedProductCard extends StatelessWidget {
+<<<<<<< Updated upstream
   const FeaturedProductCard({super.key, required this.product, this.onTap});
+=======
+  const FeaturedProductCard({
+    super.key,
+    required this.variant,
+    this.onTap,
+  });
+>>>>>>> Stashed changes
 
-  final CatalogProduct product;
+  final ProductVariant variant;
   final VoidCallback? onTap;
+
+  void _addToCart(BuildContext context) {
+    if (!variant.inStock) return;
+    context.read<CartController>().addVariant(variant);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${variant.displayName} added to cart'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final from = CatalogMockData.cheapestVariantFor(product.id);
-    final brandName = from?.brandName ?? product.categoryName;
-    final rating = from?.rating;
-    final inStock = from?.inStock ?? true;
 
     return SizedBox(
-      width: 176,
-      height: 348,
+      width: 132,
+      height: 228,
       child: Material(
         color: AppColors.surface,
         elevation: AppElevation.level1,
@@ -91,21 +124,28 @@ class FeaturedProductCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               CategoryImage(
-                imageAsset: product.imageAsset,
-                fallbackIcon: product.icon,
+                imageAsset: '',
+                imageUrl: variant.imageUrl,
+                fallbackIcon: variant.icon,
                 fallbackIconColor: AppColors.primary,
                 fallbackBackground: AppColors.surfaceContainer,
                 width: double.infinity,
-                height: 112,
+                height: 72,
                 fit: BoxFit.cover,
-                iconSize: AppSpacing.space8,
+                iconSize: AppSpacing.space6,
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.space3),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.space2,
+                    AppSpacing.space2,
+                    AppSpacing.space2,
+                    AppSpacing.space2,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+<<<<<<< Updated upstream
                       Expanded(
                         child: Align(
                           alignment: Alignment.topLeft,
@@ -179,6 +219,53 @@ class FeaturedProductCard extends StatelessWidget {
                         ),
                       ),
                       ProductActionBar(product: product, compact: true),
+=======
+                      Text(
+                        variant.brandName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        variant.productName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          height: 1.15,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${variant.priceLabel} / ${variant.unit}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.space1),
+                      StockStatusChip(inStock: variant.inStock),
+                      const SizedBox(height: AppSpacing.space1),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 30,
+                        child: FilledButton(
+                          onPressed:
+                              variant.inStock ? () => _addToCart(context) : null,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 30),
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            textStyle: theme.textTheme.labelSmall,
+                          ),
+                          child: const Text('Add'),
+                        ),
+                      ),
+>>>>>>> Stashed changes
                     ],
                   ),
                 ),

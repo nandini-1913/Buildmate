@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_elevation.dart';
@@ -26,29 +27,115 @@ class CategoriesSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        HomeSectionHeader(title: 'Shop by Category', onViewAll: onViewAll),
+        HomeSectionHeader(title: 'Shop by Categories', onViewAll: onViewAll),
         const SizedBox(height: AppSpacing.space3),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            const gap = AppSpacing.space3;
-            final cardWidth = (constraints.maxWidth - gap) / 2;
-            return Wrap(
-              spacing: gap,
-              runSpacing: gap,
-              children: [
-                for (final category in categories)
-                  SizedBox(
-                    width: cardWidth,
-                    child: HomeCategoryCard(
-                      category: category,
-                      onTap: () => onCategoryTap?.call(category),
-                    ),
-                  ),
-              ],
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4,
+            mainAxisSpacing: AppSpacing.space3,
+            crossAxisSpacing: AppSpacing.space3,
+            childAspectRatio: 0.68,
+          ),
+          itemCount: categories.length,
+          itemBuilder: (context, index) {
+            final category = categories[index];
+            return HomeCategoryGridTile(
+              category: category,
+              onTap: () => onCategoryTap?.call(category),
             );
           },
         ),
       ],
+    );
+  }
+}
+
+/// Title-case API names (e.g. `PIPES & FITTING`) for consistent labels.
+String formatHomeCategoryLabel(String name) {
+  final parts = name.trim().split(RegExp(r'\s+'));
+  return parts
+      .map((part) {
+        if (part.isEmpty || part == '&') return part;
+        final lower = part.toLowerCase();
+        return '${lower[0].toUpperCase()}${lower.substring(1)}';
+      })
+      .join(' ');
+}
+
+TextStyle homeCategoryLabelStyle() {
+  return GoogleFonts.dmSans(
+    fontSize: 10,
+    fontWeight: FontWeight.w500,
+    height: 1.2,
+    letterSpacing: 0,
+    color: AppColors.onSurface,
+  );
+}
+
+/// Compact category tile for the home dashboard (4-column grid).
+class HomeCategoryGridTile extends StatelessWidget {
+  const HomeCategoryGridTile({
+    super.key,
+    required this.category,
+    this.onTap,
+  });
+
+  final HomeCategory category;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = formatHomeCategoryLabel(category.name);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final side = constraints.maxWidth;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: side,
+              height: side,
+              child: Material(
+                color: AppColors.surface,
+                elevation: AppElevation.level1,
+                shadowColor: AppColors.shadow,
+                shape: RoundedRectangleBorder(
+                  borderRadius: AppRadius.mdAll,
+                  side: const BorderSide(color: AppColors.divider),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: onTap,
+                  child: CategoryImage(
+                    imageAsset: category.imageAsset,
+                    imageUrl: category.imageUrl,
+                    fallbackIcon: category.icon,
+                    fallbackIconColor: Color(category.iconColor),
+                    fallbackBackground: AppColors.surfaceContainer,
+                    width: side,
+                    height: side,
+                    borderRadius: AppRadius.mdAll,
+                    fit: BoxFit.contain,
+                    iconSize: AppSpacing.space5,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.space2),
+            Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: homeCategoryLabelStyle(),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -86,6 +173,7 @@ class HomeCategoryCard extends StatelessWidget {
             children: [
               CategoryImage(
                 imageAsset: category.imageAsset,
+                imageUrl: category.imageUrl,
                 fallbackIcon: category.icon,
                 fallbackIconColor: Color(category.iconColor),
                 fallbackBackground: Color(category.iconBackground),

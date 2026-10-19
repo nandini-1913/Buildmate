@@ -41,6 +41,9 @@ class AppUserProfile {
     name: 'Guest User',
     isGuest: true,
   );
+
+  /// Logged-out / no-session placeholder — not a real user.
+  static const empty = AppUserProfile(id: '', name: '');
 }
 
 class Category {
@@ -52,6 +55,7 @@ class Category {
     required this.iconColor,
     required this.iconBackground,
     this.imageAsset = '',
+    this.imageUrl,
     this.description = '',
     this.subCategoryIds = const [],
   });
@@ -64,6 +68,8 @@ class Category {
   final int iconBackground;
   /// Local asset path for category product imagery (empty = use [icon]).
   final String imageAsset;
+  /// Remote category image from backend (preferred over [imageAsset]).
+  final String? imageUrl;
   final String description;
   final List<String> subCategoryIds;
 }
@@ -125,6 +131,7 @@ class CatalogProduct {
     required this.icon,
     required this.specifications,
     this.imageAsset = '',
+    this.imageUrl,
     this.specSummary = '',
     this.isFeatured = false,
     this.isPopular = false,
@@ -143,6 +150,8 @@ class CatalogProduct {
   final String icon;
   /// Local category product image used on product cards (empty = use [icon]).
   final String imageAsset;
+  /// Remote product image from backend (preferred over [imageAsset]).
+  final String? imageUrl;
   final Map<String, String> specifications;
   final String specSummary;
   final bool isFeatured;

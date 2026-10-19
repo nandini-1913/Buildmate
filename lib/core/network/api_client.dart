@@ -10,6 +10,9 @@ class ApiClient {
 
   final http.Client _client;
 
+  /// Supplies a fresh Firebase ID token when the user is signed in.
+  static Future<String?> Function({bool forceRefresh})? authTokenProvider;
+
   Future<Map<String, dynamic>> getJson(
     String path, {
     Map<String, String>? queryParameters,
@@ -17,8 +20,56 @@ class ApiClient {
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.apiPrefix}$path')
         .replace(queryParameters: queryParameters);
+<<<<<<< Updated upstream
     final response = await _client.get(uri).timeout(timeout);
     return _decodeEnvelope(response);
+=======
+    try {
+      if (kDebugMode) {
+        print('API GET: $uri');
+      }
+      final response = await _sendWithAuthRetry(
+        uri: uri,
+        timeout: timeout,
+      );
+      if (kDebugMode) {
+        print('API RESPONSE (${response.statusCode}): ${response.body}');
+      }
+      return _decodeEnvelope(response);
+    } catch (e) {
+      if (kDebugMode) {
+        print('API ERROR for $uri: $e');
+      }
+      rethrow;
+    }
+>>>>>>> Stashed changes
+  }
+
+  Future<Map<String, String>> _authHeaders({bool forceRefresh = false}) async {
+    final provider = authTokenProvider;
+    if (provider == null) return const {};
+    final token = await provider(forceRefresh: forceRefresh);
+    if (token == null || token.isEmpty) return const {};
+    return {'Authorization': 'Bearer $token'};
+  }
+
+  Future<http.Response> _sendWithAuthRetry({
+    required Uri uri,
+    required Duration timeout,
+    bool retried401 = false,
+  }) async {
+    final response = await _client
+        .get(uri, headers: await _authHeaders())
+        .timeout(timeout);
+
+    if (response.statusCode == 401 &&
+        !retried401 &&
+        authTokenProvider != null) {
+      return _client
+          .get(uri, headers: await _authHeaders(forceRefresh: true))
+          .timeout(timeout);
+    }
+    return response;
   }
 
   Map<String, dynamic> _decodeEnvelope(http.Response response) {

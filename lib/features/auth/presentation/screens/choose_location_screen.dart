@@ -52,7 +52,17 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
     );
     _mapController = MapController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+<<<<<<< Updated upstream
       _useCurrentLocation();
+=======
+      final location = context.read<LocationController>();
+      if (location.hasFix) {
+        setState(() => _located = true);
+        _mapController.move(location.currentCenter, 16);
+      } else {
+        _useCurrentLocation();
+      }
+>>>>>>> Stashed changes
     });
   }
 
@@ -70,6 +80,7 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
     });
     _pinController.repeat(reverse: true);
 
+<<<<<<< Updated upstream
     try {
       final point = await _location.currentPoint();
       if (!mounted) return;
@@ -90,6 +101,10 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
       );
     }
   }
+=======
+    final locationController = context.read<LocationController>();
+    final ok = await locationController.fetchCurrentLocation();
+>>>>>>> Stashed changes
 
   Future<void> _onPinMoved(LatLng point) async {
     await _showPlace(point);
@@ -102,11 +117,85 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
     _pinController
       ..stop()
       ..value = 0;
+<<<<<<< Updated upstream
     setState(() {
       _place = place;
       _locating = false;
       _located = true;
+=======
+
+    if (ok) {
+      _mapController.move(locationController.currentCenter, 16);
+      setState(() {
+        _locating = false;
+        _located = true;
+      });
+    } else {
+      setState(() {
+        _locating = false;
+        _located = false;
+      });
+      final message =
+          locationController.error ?? 'Unable to get current location';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'Retry',
+            onPressed: _useCurrentLocation,
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _onMapMoved(LatLng center) async {
+    await context.read<LocationController>().applyCoordinates(center);
+    if (!mounted) return;
+    setState(() => _located = true);
+  }
+
+  Future<void> _searchPlace(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) return;
+
+    setState(() {
+      _locating = true;
+      _located = false;
+>>>>>>> Stashed changes
     });
+    _pinController.repeat(reverse: true);
+
+    final locationController = context.read<LocationController>();
+    final ok = await locationController.searchAddress(q);
+
+    if (!mounted) return;
+
+    _pinController
+      ..stop()
+      ..value = 0;
+
+    if (ok) {
+      _mapController.move(locationController.currentCenter, 16);
+      setState(() {
+        _locating = false;
+        _located = true;
+      });
+    } else {
+      setState(() {
+        _locating = false;
+        _located = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            locationController.error ?? 'No places found for “$q”',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _stopLocating() {
@@ -179,6 +268,7 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
                       flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                     ),
                     onMapEvent: (event) {
+<<<<<<< Updated upstream
                       if (event is! MapEventMoveEnd) return;
                       if (event.source != MapEventSource.dragEnd &&
                           event.source != MapEventSource.multiFingerEnd &&
@@ -187,6 +277,11 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
                         return;
                       }
                       _onPinMoved(event.camera.center);
+=======
+                      if (event is MapEventMoveEnd) {
+                        _onMapMoved(event.camera.center);
+                      }
+>>>>>>> Stashed changes
                     },
                   ),
                   children: [
@@ -310,7 +405,7 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
                       ),
                     ),
                     const SizedBox(height: AppSpacing.space4),
-                    _SearchField(),
+                    _SearchField(onSearch: _searchPlace),
                     const SizedBox(height: AppSpacing.space4),
                     _AddressCard(
                       located: _located,
@@ -362,7 +457,26 @@ class _RoundIconButton extends StatelessWidget {
   }
 }
 
-class _SearchField extends StatelessWidget {
+class _SearchField extends StatefulWidget {
+  const _SearchField({required this.onSearch});
+
+  final ValueChanged<String> onSearch;
+
+  @override
+  State<_SearchField> createState() => _SearchFieldState();
+}
+
+class _SearchFieldState extends State<_SearchField> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() => widget.onSearch(_controller.text);
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -381,14 +495,57 @@ class _SearchField extends StatelessWidget {
       ),
       child: Row(
         children: [
+<<<<<<< Updated upstream
           const Icon(Icons.search_rounded, color: LoginFlowColors.accent),
           const SizedBox(width: AppSpacing.space3),
           Expanded(
             child: Text(
               'Search area, street or landmark',
               style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 15),
+=======
+          GestureDetector(
+            onTap: _submit,
+            child: const Icon(
+              Icons.search_rounded,
+              color: LoginFlowColors.accent,
+>>>>>>> Stashed changes
             ),
           ),
+          const SizedBox(width: AppSpacing.space3),
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              textInputAction: TextInputAction.search,
+              style: const TextStyle(
+                color: AppColors.onSurface,
+                fontSize: 15,
+              ),
+              decoration: const InputDecoration(
+                isDense: true,
+                filled: false,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                hintText: 'Search area, street or landmark',
+                hintStyle: TextStyle(
+                  color: AppColors.onSurfaceVariant,
+                  fontSize: 15,
+                ),
+                contentPadding: EdgeInsets.zero,
+              ),
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) => _submit(),
+            ),
+          ),
+          if (_controller.text.isNotEmpty)
+            IconButton(
+              onPressed: () {
+                _controller.clear();
+                setState(() {});
+              },
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.close_rounded, size: 18),
+            ),
         ],
       ),
     );

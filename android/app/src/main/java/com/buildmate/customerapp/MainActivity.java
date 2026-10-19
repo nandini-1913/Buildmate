@@ -1,4 +1,4 @@
-package com.example.customerapp;
+package com.buildmate.customerapp;
 
 import io.flutter.embedding.android.FlutterActivity;
 

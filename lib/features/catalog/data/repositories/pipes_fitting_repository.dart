@@ -1,24 +1,23 @@
-import 'dart:convert';
-
-import 'package:flutter/services.dart' show rootBundle;
-
+import '../../../../core/network/api_client.dart';
 import '../../domain/models/pipes_fitting_catalog_models.dart';
+import '../mappers/catalog_api_mapper.dart';
+import 'catalog_repository.dart';
 
-/// Loads the "Pipes & Fitting" mock catalog from
-/// assets/data/pipes_fitting_mock_data.json.
-abstract final class PipesFittingRepository {
-  static const String _assetPath = 'assets/data/pipes_fitting_mock_data.json';
+/// Loads the "Pipes & Fitting" catalog from the live API
+/// (`http://…/api/catalog`), not from local mock assets.
+class PipesFittingRepository {
+  PipesFittingRepository({CatalogRepository? catalogRepository})
+      : _catalogRepository = catalogRepository ?? CatalogRepository();
 
-  static PipesFittingCatalog? _cache;
+  final CatalogRepository _catalogRepository;
 
-  static Future<PipesFittingCatalog> load() async {
-    final cached = _cache;
-    if (cached != null) return cached;
-
-    final raw = await rootBundle.loadString(_assetPath);
-    final json = jsonDecode(raw) as Map<String, dynamic>;
-    final catalog = PipesFittingCatalog.fromJson(json);
-    _cache = catalog;
-    return catalog;
+  Future<PipesFittingCatalog> fetchLiveCatalog() async {
+    final items = await _catalogRepository.fetchPipeCatalog();
+    if (items.isEmpty) {
+      throw ApiException('No pipes & fitting products returned by server');
+    }
+    return CatalogApiMapper.toPipesFittingCatalog(items);
   }
+
+  void dispose() => _catalogRepository.dispose();
 }

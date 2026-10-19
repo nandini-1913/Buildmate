@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/cart_controller.dart';
+import '../../../../core/state/catalog_controller.dart';
 import '../../../../core/state/recently_viewed_controller.dart';
 import '../../../../core/state/wishlist_controller.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -10,7 +11,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/catalog_widgets.dart';
 import '../../../../shared/widgets/category_image.dart';
-import '../../data/mock/catalog_mock_data.dart';
+import '../../data/mappers/catalog_api_mapper.dart';
 import '../../domain/models/catalog_models.dart';
 
 class ProductDetailScreen extends StatefulWidget {
@@ -37,16 +38,56 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   void initState() {
     super.initState();
     _selectedVariantId = widget.initialVariantId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final catalog = context.read<CatalogController>();
+      if (catalog.pipeVariants.isEmpty) {
+        catalog.refreshHomeCatalog(showLoading: false);
+      }
+    });
   }
 
-  ProductVariant? get _selected {
-    final variants = CatalogMockData.variantsByProduct(widget.productId);
+  List<ProductVariant> _resolveVariants(CatalogController catalog) {
+    final byProduct = catalog.variantsForProduct(widget.productId);
+    if (byProduct.isNotEmpty) return byProduct;
+
+    final initialId = widget.initialVariantId;
+    if (initialId != null) {
+      final byId = catalog.variantById(initialId);
+      if (byId != null) {
+        final group = catalog.variantsForProduct(byId.productId);
+        return group.isNotEmpty ? group : [byId];
+      }
+    }
+    return const [];
+  }
+
+  CatalogProduct? _resolveProduct(
+    CatalogController catalog,
+    List<ProductVariant> variants,
+  ) {
+    if (variants.isEmpty) return null;
+    ProductVariant? preferred;
+    if (_selectedVariantId != null) {
+      for (final v in variants) {
+        if (v.id == _selectedVariantId) {
+          preferred = v;
+          break;
+        }
+      }
+    }
+    return CatalogApiMapper.productFromVariant(preferred ?? variants.first);
+  }
+
+  ProductVariant? _selectedFrom(List<ProductVariant> variants) {
     if (variants.isEmpty) return null;
     if (_selectedVariantId != null) {
       for (final v in variants) {
         if (v.id == _selectedVariantId) return v;
       }
     }
+    // Live API products are often single-variant — auto-select.
+    if (variants.length == 1) return variants.first;
     return null;
   }
 
@@ -59,8 +100,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     });
   }
 
-  Future<void> _openSystemFilter(CatalogProduct product) async {
-    final sizes = CatalogMockData.sizeOptionsForCategory(product.categoryId);
+  Future<void> _openSystemFilter(
+    CatalogController catalog,
+    CatalogProduct product,
+  ) async {
+    final sizes = catalog.sizeOptionsForCategory(product.categoryId);
     if (sizes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -142,21 +186,29 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final product = CatalogMockData.productById(widget.productId);
-    final variants = CatalogMockData.variantsByProduct(widget.productId);
+    final catalog = context.watch<CatalogController>();
+    final variants = _resolveVariants(catalog);
+    final product = _resolveProduct(catalog, variants);
 
     if (product == null || variants.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('Product')),
-        body: const Center(child: Text('Product not found')),
+        body: Center(
+          child: Text(
+            catalog.isLoading || catalog.isHomeLoading
+                ? 'Loading product…'
+                : 'Product not found',
+          ),
+        ),
       );
     }
 
-    final selected = _selected;
+    final selected = _selectedFrom(variants);
+    if (selected != null) _recordView(selected);
     final theme = Theme.of(context);
     final wishlist = context.watch<WishlistController>();
     final cart = context.watch<CartController>();
-    final compatible = CatalogMockData.compatibleProductsFor(
+    final compatible = catalog.compatibleProductsFor(
       product,
       sizeFilter: _systemSizeFilter,
     );
@@ -192,6 +244,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         children: [
           CategoryImage(
             imageAsset: product.imageAsset,
+            imageUrl: selected?.imageUrl ?? product.imageUrl,
             fallbackIcon: product.icon,
             fallbackIconColor: AppColors.primary,
             fallbackBackground: AppColors.surfaceContainer,
@@ -419,7 +472,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 child: Text('Complete System', style: theme.textTheme.titleMedium),
               ),
               TextButton.icon(
-                onPressed: () => _openSystemFilter(product),
+                onPressed: () => _openSystemFilter(catalog, product),
                 icon: const Icon(Icons.tune_rounded, size: 18),
                 label: Text(
                   _systemSizeFilter == null
@@ -475,7 +528,8 @@ class _CompatibleProductTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final from = CatalogMockData.cheapestVariantFor(product.id);
+    final catalog = context.watch<CatalogController>();
+    final from = catalog.cheapestVariantFor(product.id);
     final brandName = from?.brandName ?? product.subCategoryName;
 
     return Material(

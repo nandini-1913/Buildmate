@@ -20,9 +20,19 @@ class ProfileController extends ChangeNotifier {
   ProfileDetails? get details => _details;
 
   Future<void> loadForUser(AppUserProfile user) async {
+    if (user.id.isEmpty) {
+      clear();
+      return;
+    }
     if (_userId == user.id && _details != null) return;
     _userId = user.id;
     _details = await _repository.fetch(user);
+    notifyListeners();
+  }
+
+  void clear() {
+    _details = null;
+    _userId = null;
     notifyListeners();
   }
 

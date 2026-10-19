@@ -3,13 +3,18 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/state/cart_controller.dart';
+import '../../../../core/state/order_history_controller.dart';
 import '../../../../core/state/profile_controller.dart';
+import '../../../../core/state/recently_viewed_controller.dart';
 import '../../../../core/state/reward_controller.dart';
 import '../../../../core/state/session_controller.dart';
+import '../../../../core/state/wishlist_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../catalog/domain/models/catalog_models.dart';
 import '../../domain/models/profile_models.dart';
+import '../../utils/referral_share.dart';
 import '../widgets/profile_document_preview.dart';
 import '../widgets/profile_edit_sheets.dart';
 import '../widgets/profile_widgets.dart';
@@ -40,6 +45,7 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
     await Future.wait([
       context.read<RewardController>().refreshForUser(user.id),
       context.read<ProfileController>().loadForUser(user),
+      context.read<OrderHistoryController>().loadForUser(user.id),
     ]);
   }
 
@@ -61,7 +67,7 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
     // Keep the session (header avatar, initials) in sync with the new name.
     final session = context.read<SessionController>();
     final u = session.user;
-    session.setUser(
+    await session.setUser(
       AppUserProfile(
         id: u.id,
         name: saved.fullName,
@@ -111,10 +117,40 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
     _showSnack('Bank details submitted for approval');
   }
 
+  Future<void> _signOut() async {
+    context.read<ProfileController>().clear();
+    context.read<OrderHistoryController>().clear();
+    context.read<CartController>().clear();
+    context.read<WishlistController>().clear();
+    context.read<RecentlyViewedController>().clear();
+    await context.read<SessionController>().logout();
+    if (!mounted) return;
+    // Use the root navigator — the shell's nested Navigator remaps login
+    // back to home tabs and would leave the user signed in visually.
+    Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+      AppRoutes.login,
+      (_) => false,
+    );
+  }
+
+  String _referralCodeFor(AppUserProfile user) {
+    final raw = (user.id.isNotEmpty ? user.id : user.name)
+        .replaceAll(RegExp(r'[^A-Za-z0-9]'), '')
+        .toUpperCase();
+    if (raw.length >= 8) return raw.substring(0, 8);
+    if (raw.isEmpty) return 'NOVA7F3K';
+    return 'NOVA${raw.padRight(4, 'X').substring(0, 4)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = context.watch<SessionController>().user;
     final details = context.watch<ProfileController>().details;
+<<<<<<< Updated upstream
+=======
+    final orderHistory = context.watch<OrderHistoryController>().orders;
+    final theme = Theme.of(context);
+>>>>>>> Stashed changes
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -252,7 +288,9 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
                         ),
                       ],
                     ),
+                    ProfileOrderHistorySection(orders: orderHistory),
                     const SizedBox(height: AppSpacing.space2),
+<<<<<<< Updated upstream
                     // Padding(
                     //   padding: const EdgeInsets.only(
                     //     left: AppSpacing.space1,
@@ -317,6 +355,42 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
                       );
                     }
                     },
+=======
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: AppSpacing.space1,
+                        bottom: AppSpacing.space2,
+                      ),
+                      child: Text('Account', style: theme.textTheme.titleSmall),
+                    ),
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: _AccountMiniTile(
+                              icon: Icons.stars_rounded,
+                              title: 'My Rewards',
+                              subtitle: '$balance points',
+                              onTap: () {
+                                Navigator.of(context)
+                                    .pushNamed(AppRoutes.myRewards);
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.space2),
+                          Expanded(
+                            child: _EarnReferCard(
+                              referralCode: _referralCodeFor(user),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.space4),
+                    OutlinedButton.icon(
+                      onPressed: () => _signOut(),
+>>>>>>> Stashed changes
                       icon: const Icon(Icons.logout_rounded),
                       label: const Text('Sign out'),
                     ),
@@ -329,3 +403,213 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
     );
   }
 }
+<<<<<<< Updated upstream
+=======
+
+class _AccountMiniTile extends StatelessWidget {
+  const _AccountMiniTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: AppColors.surface,
+      borderRadius: AppRadius.mdAll,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.mdAll,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppSpacing.space3),
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.mdAll,
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: AppColors.primary, size: 20),
+              const SizedBox(height: AppSpacing.space2),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+              const Spacer(),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EarnReferCard extends StatelessWidget {
+  const _EarnReferCard({required this.referralCode});
+
+  final String referralCode;
+
+  Future<void> _copyCode(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: referralCode));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Referral code copied'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _shareCode(BuildContext context) async {
+    await shareReferralCode(referralCode);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: AppColors.surface,
+      borderRadius: AppRadius.mdAll,
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.space3),
+        decoration: BoxDecoration(
+          borderRadius: AppRadius.mdAll,
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.card_giftcard_rounded,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+                const Spacer(),
+                InkWell(
+                  onTap: () => _shareCode(context),
+                  borderRadius: AppRadius.pillAll,
+                  child: const Padding(
+                    padding: EdgeInsets.all(2),
+                    child: Icon(
+                      Icons.share_rounded,
+                      size: 18,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.space2),
+            Text(
+              'Earn & Refer',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Share code & earn rewards',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.space2,
+                vertical: AppSpacing.space1,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainer,
+                borderRadius: AppRadius.smAll,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      referralCode,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => _copyCode(context),
+                    borderRadius: AppRadius.smAll,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.copy_rounded,
+                            size: 14,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            'Copy',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+>>>>>>> Stashed changes

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../constants/app_constants.dart';
 import '../../features/auth/presentation/screens/choose_location_screen.dart';
 import '../../features/auth/presentation/screens/choose_profession_screen.dart';
 import '../../features/auth/presentation/screens/create_account_screen.dart';
@@ -9,9 +10,10 @@ import '../../features/auth/presentation/screens/otp_verification_screen.dart';
 import '../../features/auth/presentation/screens/password_updated_screen.dart';
 import '../../features/auth/presentation/screens/reset_password_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
-import '../../features/catalog/data/mock/catalog_mock_data.dart';
+import '../../features/catalog/data/mappers/catalog_api_mapper.dart';
 import '../../features/catalog/presentation/screens/brands_screen.dart';
 import '../../features/catalog/presentation/screens/cart_screen.dart';
+import '../../features/catalog/presentation/screens/electricals_category_screen.dart';
 import '../../features/checkout/presentation/screens/add_address_screen.dart';
 import '../../features/checkout/presentation/screens/order_confirmation_screen.dart';
 import '../../features/checkout/presentation/screens/payment_screen.dart';
@@ -22,6 +24,7 @@ import '../../features/catalog/presentation/screens/offers_screen.dart';
 import '../../features/catalog/presentation/screens/pipes_fitting_category_screen.dart';
 import '../../features/catalog/presentation/screens/product_detail_screen.dart';
 import '../../features/catalog/presentation/screens/product_list_screen.dart';
+import '../../features/catalog/presentation/screens/search_screen.dart';
 import '../../features/catalog/presentation/screens/upvc_pipe_variant_list_screen.dart';
 import '../../features/placeholders/presentation/screens/feature_placeholder_screen.dart';
 import '../../features/profile/presentation/screens/profile_tab_body.dart';
@@ -30,7 +33,6 @@ import '../../features/rewards/presentation/screens/admin_quotations_screen.dart
 import '../../features/rewards/presentation/screens/my_rewards_screen.dart';
 import '../../features/shell/presentation/main_shell.dart';
 import '../theme/app_colors.dart';
-import '../theme/app_spacing.dart';
 import 'app_routes.dart';
 
 abstract final class AppRouter {
@@ -96,19 +98,34 @@ abstract final class AppRouter {
         return _fade(const MainShell(), settings);
 
       case AppRoutes.search:
-        return _slide(const SearchScreen(), settings);
+        final searchArgs = settings.arguments as SearchArgs?;
+        return _slide(
+          SearchScreen(initialQuery: searchArgs?.initialQuery),
+          settings,
+        );
       case AppRoutes.categories:
         return _slide(const CategoriesScreen(), settings);
       case AppRoutes.categoryBrowse:
         final args = settings.arguments as CategoryBrowseArgs?;
-        final categoryId = args?.categoryId ?? 'cat-pipes-tubing';
-        if (categoryId == CatalogMockData.pipesTubingCategoryId) {
+        final categoryId = args?.categoryId ?? '';
+        final categoryName = args?.categoryName ?? '';
+        final isElectricalCategory =
+            categoryId.toLowerCase().contains('electrical') ||
+            categoryId.toLowerCase().contains('electric') ||
+            categoryName.toLowerCase().contains('electrical') ||
+            categoryName.toLowerCase().contains('electric');
+        if (isElectricalCategory) {
+          return _slide(const ElectricalsCategoryScreen(), settings);
+        }
+        final isPipesCategory = categoryId == 'pipes' ||
+            CatalogApiMapper.isPipesCategory(categoryName) ||
+            (categoryName.isEmpty &&
+                RegExp(r'^[0-9a-f-]{36}$', caseSensitive: false)
+                    .hasMatch(categoryId));
+        if (isPipesCategory) {
           return _slide(const PipesFittingCategoryScreen(), settings);
         }
-        return _slide(
-          CategoryBrowseScreen(categoryId: categoryId),
-          settings,
-        );
+        return _slide(CategoryBrowseScreen(categoryId: categoryId), settings);
       case AppRoutes.productList:
         final args = settings.arguments as ProductListArgs?;
         return _slide(
@@ -244,6 +261,9 @@ abstract final class AppRouter {
           settings,
         );
       case AppRoutes.aiAssistant:
+        if (!AppConstants.aiAssistantEnabled) {
+          return _aiAssistantDisabledRoute(settings);
+        }
         return _slide(
           const StandalonePlaceholderScreen(
             title: 'AI Assistant',
@@ -286,94 +306,19 @@ abstract final class AppRouter {
       },
     );
   }
-}
 
-class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
-
-  @override
-  State<SearchScreen> createState() => _SearchScreenState();
-}
-
-class _SearchScreenState extends State<SearchScreen> {
-  final _controller = TextEditingController();
-  var _query = '';
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final results = CatalogMockData.search(_query);
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        title: TextField(
-          controller: _controller,
-          autofocus: true,
-          style: Theme.of(context).textTheme.bodyLarge,
-          decoration: InputDecoration(
-            hintText: 'Search products, brands or categories',
-            hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.outline,
-                ),
-            border: InputBorder.none,
-          ),
-          onChanged: (v) => setState(() => _query = v),
-        ),
-      ),
-      body: _query.trim().isEmpty
-          ? Center(
-              child: Text(
-                'Search products, brands or categories',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.outline,
-                    ),
-              ),
-            )
-          : results.isEmpty
-              ? Center(
-                  child: Text(
-                    'No results for “$_query”',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(AppSpacing.space4),
-                  itemCount: results.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final p = results[index];
-                    final theme = Theme.of(context);
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(p.name, style: theme.textTheme.titleSmall),
-                      subtitle: Text(
-                        '${p.categoryName} · ${p.subCategoryName}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.outline,
-                        ),
-                      ),
-                      trailing: Text(
-                        'From ₹${p.basePrice.toStringAsFixed(0)}',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.of(context).pushNamed(
-                          AppRoutes.productDetail,
-                          arguments: ProductDetailArgs(productId: p.id),
-                        );
-                      },
-                    );
-                  },
-                ),
+  /// No-op route when [AppConstants.aiAssistantEnabled] is false.
+  static MaterialPageRoute<void> _aiAssistantDisabledRoute(
+    RouteSettings settings,
+  ) {
+    return MaterialPageRoute<void>(
+      settings: settings,
+      builder: (context) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.of(context).maybePop();
+        });
+        return const SizedBox.shrink();
+      },
     );
   }
 }
