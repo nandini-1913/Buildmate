@@ -1,8 +1,3 @@
-<<<<<<< Updated upstream
-import '../../../../core/network/api_client.dart';
-import '../models/api_catalog_product.dart';
-import '../mappers/catalog_api_mapper.dart';
-=======
 import 'package:flutter/foundation.dart' hide Category;
 
 import '../../../../core/network/api_client.dart';
@@ -10,25 +5,12 @@ import '../../domain/models/catalog_models.dart';
 import '../mappers/catalog_api_mapper.dart';
 import '../models/api_catalog_product.dart';
 import '../models/api_subcategory.dart';
->>>>>>> Stashed changes
 
 class CatalogRepository {
   CatalogRepository({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
 
   final ApiClient _apiClient;
 
-<<<<<<< Updated upstream
-  /// Fetches active pipe catalog items from the dashboard FastAPI backend.
-  Future<List<ApiCatalogProduct>> fetchPipeCatalog() async {
-    final envelope = await _apiClient.getJson(
-      '/catalog',
-      queryParameters: {
-        'category': CatalogApiMapper.pipesCategoryName,
-        'active_only': 'true',
-      },
-    );
-    final data = envelope['data'];
-=======
   /// Fetches active categories from `GET /api/categories`.
   Future<List<Category>> fetchCategories({bool activeOnly = true}) async {
     final envelope = await _apiClient.getJson(
@@ -39,7 +21,6 @@ class CatalogRepository {
     );
 
     final data = envelope['data'] ?? envelope['items'] ?? envelope;
->>>>>>> Stashed changes
     if (data is! List) return const [];
 
     return data

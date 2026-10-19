@@ -6,13 +6,8 @@ plugins {
 }
 
 android {
-<<<<<<< Updated upstream
-    namespace = "com.example.customerapp"
-    compileSdk = flutter.compileSdkVersion
-=======
     namespace = "com.buildmate.customerapp"
     compileSdk = 36
->>>>>>> Stashed changes
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

@@ -340,14 +340,9 @@ abstract final class CatalogApiMapper {
         if (item.productCode != null) 'SKU': item.productCode!,
         if (sizeLabel != null && sizeLabel.isNotEmpty) 'Size': sizeLabel,
         if (item.length != null) 'Length': item.length!,
-<<<<<<< Updated upstream
-        'Product Group': ?productGroup,
-        'Type': scheduleType ?? typeName,
-=======
         if (productGroup != null) 'Product Group': productGroup,
         'Type': typeName,
         'Class': className,
->>>>>>> Stashed changes
       },
       imageAsset: '',
       imageUrl: _validImageUrl(item.imageUrl),

@@ -3,21 +3,14 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/location/device_location.dart';
 import '../../../../core/routes/app_routes.dart';
-<<<<<<< Updated upstream
-=======
 import '../../../../core/state/catalog_controller.dart';
 import '../../../../core/state/location_controller.dart';
->>>>>>> Stashed changes
 import '../../../../core/state/recently_viewed_controller.dart';
 import '../../../../core/state/session_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../catalog/domain/models/catalog_models.dart';
-<<<<<<< Updated upstream
-import '../widgets/construction_tools_section.dart';
-=======
 import '../../data/mock/home_mock_data.dart';
->>>>>>> Stashed changes
 import '../widgets/current_offers_section.dart';
 import '../widgets/featured_banner_carousel.dart';
 import '../widgets/featured_products_section.dart';
@@ -41,51 +34,6 @@ class HomeDashboardScreen extends StatefulWidget {
 }
 
 class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
-<<<<<<< Updated upstream
-  static const _location = DeviceLocation();
-  String _deliveryAddress = 'Finding your location…';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCurrentLocation();
-  }
-
-  Future<void> _loadCurrentLocation() async {
-    try {
-      final place = await _location.currentPlace();
-      if (!mounted) return;
-      setState(() => _deliveryAddress = place.singleLine);
-    } catch (_) {
-      if (!mounted || _deliveryAddress != 'Finding your location…') return;
-      setState(() => _deliveryAddress = 'Tap to set your location');
-    }
-  }
-
-  void _open(String route, {Object? arguments}) {
-    Navigator.of(context).pushNamed(route, arguments: arguments);
-  }
-
-  Future<void> _changeDeliveryLocation() async {
-    final user = context.read<SessionController>().user;
-    final result = await Navigator.of(context).pushNamed(
-      AppRoutes.chooseLocation,
-      arguments: SignupFlowArgs(
-        mobileNumber: user.phone ?? '',
-        fullName: user.name,
-        isLocationUpdate: true,
-      ),
-    );
-    if (!mounted || result is! String || result.trim().isEmpty) return;
-    setState(() => _deliveryAddress = result.trim());
-  }
-
-  void _openProduct(CatalogProduct product) {
-    _open(
-      AppRoutes.productDetail,
-      arguments: ProductDetailArgs(productId: product.id),
-    );
-=======
   @override
   void initState() {
     super.initState();
@@ -105,7 +53,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
 
   void _open(String route, {Object? arguments}) {
     Navigator.of(context).pushNamed(route, arguments: arguments);
->>>>>>> Stashed changes
   }
 
   void _openVariant(ProductVariant variant) {
@@ -122,41 +69,11 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   Widget build(BuildContext context) {
     final user = context.watch<SessionController>().user;
     final recentlyViewed = context.watch<RecentlyViewedController>().items;
-<<<<<<< Updated upstream
-
-    final quickActions = CatalogMockData.quickActions
-        .map(
-          (a) => legacy.QuickAction(
-            id: a.id,
-            title: a.title,
-            icon: a.icon,
-            routeName: a.routeName,
-            iconColor: a.iconColor,
-            iconBackground: a.iconBackground,
-          ),
-        )
-        .toList();
-
-    final categories = CatalogMockData.categories
-        .map(
-          (c) => legacy.HomeCategory(
-            id: c.id,
-            name: c.name,
-            itemCount: c.itemCount,
-            icon: c.icon,
-            iconColor: c.iconColor,
-            iconBackground: c.iconBackground,
-            imageAsset: c.imageAsset,
-          ),
-        )
-        .toList();
-=======
     final location = context.watch<LocationController>();
     final catalog = context.watch<CatalogController>();
 
     final categories =
         HomeDashboardCategories.forDashboard(catalog.homeCategories);
->>>>>>> Stashed changes
 
     final brands = catalog.catalogBrands
         .take(8)
@@ -179,13 +96,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
             id: o.id,
             discountLabel: o.discountText,
             title: o.title,
-<<<<<<< Updated upstream
-            subtitle: o.minimumOrder.isNotEmpty
-                ? o.minimumOrder
-                : o.description,
-=======
             subtitle: o.description,
->>>>>>> Stashed changes
             endsOn: o.validUntil,
             ctaLabel: 'Explore',
             routeName: AppRoutes.offerDetail,
@@ -193,23 +104,9 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         )
         .toList();
 
-<<<<<<< Updated upstream
-    final tools = CatalogMockData.tools
-        .map(
-          (t) => legacy.ConstructionTool(
-            id: t.id,
-            title: t.title,
-            subtitle: t.subtitle,
-            icon: t.icon,
-            routeName: t.routeName,
-          ),
-        )
-        .toList();
-=======
     final featured = catalog.featuredVariants;
     final popular = catalog.popularVariants;
     final homeLoading = catalog.isHomeLoading;
->>>>>>> Stashed changes
 
     return ColoredBox(
       color: AppColors.background,
@@ -224,23 +121,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
             onCart: () => _open(AppRoutes.cart),
           ),
           Expanded(
-<<<<<<< Updated upstream
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.space4,
-                      AppSpacing.space3,
-                      AppSpacing.space4,
-                      0,
-                    ),
-                    child: HomeLocationBar(
-                      label: 'Home',
-                      address: _deliveryAddress,
-                      onTap: _changeDeliveryLocation,
-=======
             child: RefreshIndicator(
               onRefresh: () =>
                   context.read<CatalogController>().refreshHomeCatalog(),
@@ -277,7 +157,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                           );
                         },
                       ),
->>>>>>> Stashed changes
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
@@ -307,24 +186,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                         onCta: (banner) => _open(banner.routeName),
                       ),
                     ),
-<<<<<<< Updated upstream
-                  ),
-                  const SizedBox(height: AppSpacing.space4),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.space4,
-                    ),
-                    child: QuickActionsRow(
-                      actions: quickActions,
-                      onTap: (action) => _open(action.routeName),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.space5),
-                  const _SectionDivider(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.space4,
-=======
                     const SizedBox(height: AppSpacing.space5),
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -357,7 +218,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                                     );
                                   },
                                 ),
->>>>>>> Stashed changes
                     ),
                     const SizedBox(height: AppSpacing.space5),
                     const _SectionDivider(),
@@ -379,53 +239,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                       onViewAll: () => _open(AppRoutes.brands),
                       onBrandTap: (brand) {
                         _open(
-<<<<<<< Updated upstream
-                          AppRoutes.categoryBrowse,
-                          arguments: CategoryBrowseArgs(
-                            categoryId: category.id,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.space5),
-                  const _SectionDivider(),
-                  FeaturedProductsSection(
-                    products: CatalogMockData.featuredProducts,
-                    onViewAll: () => _open(
-                      AppRoutes.productList,
-                      arguments: const ProductListArgs(
-                        title: 'Featured Products',
-                      ),
-                    ),
-                    onProductTap: _openProduct,
-                  ),
-                  const SizedBox(height: AppSpacing.space5),
-                  const _SectionDivider(),
-                  PopularBrandsSection(
-                    brands: brands,
-                    onViewAll: () => _open(AppRoutes.brands),
-                    onBrandTap: (brand) {
-                      _open(
-                        AppRoutes.brandProducts,
-                        arguments: BrandProductsArgs(brandId: brand.id),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: AppSpacing.space5),
-                  const _SectionDivider(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.space4,
-                    ),
-                    child: PopularProductsSection(
-                      products: CatalogMockData.popularProducts,
-                      onViewAll: () => _open(
-                        AppRoutes.productList,
-                        arguments: const ProductListArgs(
-                          title: 'Popular Products',
-                        ),
-=======
                           AppRoutes.brandProducts,
                           arguments: BrandProductsArgs(brandId: brand.id),
                         );
@@ -447,54 +260,8 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                           ),
                         ),
                         onVariantTap: _openVariant,
->>>>>>> Stashed changes
                       ),
                     ),
-<<<<<<< Updated upstream
-                  ),
-                  const SizedBox(height: AppSpacing.space5),
-                  const _SectionDivider(),
-                  RecentlyViewedSection(
-                    products: recentlyViewed,
-                    onViewAll: recentlyViewed.isEmpty
-                        ? null
-                        : () => _open(
-                            AppRoutes.productList,
-                            arguments: const ProductListArgs(
-                              title: 'Recently Viewed',
-                            ),
-                          ),
-                    onTap: _openVariant,
-                  ),
-                  const SizedBox(height: AppSpacing.space5),
-                  const _SectionDivider(),
-                  CurrentOffersSection(
-                    offers: offers,
-                    onViewAll: () => _open(AppRoutes.offers),
-                    onExplore: (offer) {
-                      _open(
-                        AppRoutes.offerDetail,
-                        arguments: OfferDetailArgs(offerId: offer.id),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: AppSpacing.space5),
-                  const _SectionDivider(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.space4,
-                    ),
-                    child: ConstructionToolsSection(
-                      tools: tools,
-                      onViewAll: () => _open(AppRoutes.materialCalculator),
-                      onToolTap: (tool) => _open(tool.routeName),
-                    ),
-                  ),
-                  const SizedBox(
-                    height: AppSpacing.space16 + AppSpacing.space12,
-                  ),
-                ],
-=======
                     const SizedBox(height: AppSpacing.space5),
                     const _SectionDivider(),
                     RecentlyViewedSection(
@@ -526,7 +293,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                     ),
                   ],
                 ),
->>>>>>> Stashed changes
               ),
             ),
           ),

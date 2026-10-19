@@ -11,6 +11,7 @@ import '../../../../core/state/reward_controller.dart';
 import '../../../../core/state/session_controller.dart';
 import '../../../../core/state/wishlist_controller.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../catalog/domain/models/catalog_models.dart';
 import '../../domain/models/profile_models.dart';
@@ -146,11 +147,9 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
   Widget build(BuildContext context) {
     final user = context.watch<SessionController>().user;
     final details = context.watch<ProfileController>().details;
-<<<<<<< Updated upstream
-=======
     final orderHistory = context.watch<OrderHistoryController>().orders;
+    final balance = context.watch<RewardController>().balance;
     final theme = Theme.of(context);
->>>>>>> Stashed changes
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -290,72 +289,6 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
                     ),
                     ProfileOrderHistorySection(orders: orderHistory),
                     const SizedBox(height: AppSpacing.space2),
-<<<<<<< Updated upstream
-                    // Padding(
-                    //   padding: const EdgeInsets.only(
-                    //     left: AppSpacing.space1,
-                    //     bottom: AppSpacing.space2,
-                    //   ),
-                    //   child: Text('Account', style: theme.textTheme.titleSmall),
-                    // ),
-                    // _ProfileTile(
-                    //   icon: Icons.stars_rounded,
-                    //   title: 'My Rewards',
-                    //   subtitle: '$balance points',
-                    //   onTap: () {
-                    //     Navigator.of(context).pushNamed(AppRoutes.myRewards);
-                    //   },
-                    // ),
-                    // const SizedBox(height: AppSpacing.space4),
-
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                     // Show confirmation dialog
-                    final shouldLogout = await showDialog<bool>(
-                      context: context,
-                      builder: (dialogContext) {
-                        return AlertDialog(
-                          title: const Text('Sign out'),
-                          content: const Text(
-                            'Are you sure you want to sign out?',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(dialogContext).pop(false);},
-                              child: const Text('Cancel'),
-                            ),
-                            FilledButton(onPressed: () {
-                              Navigator.of(dialogContext).pop(true);
-                              },
-                              child: const Text('Sign out'),
-                            ),
-                          ],
-                        );
-                        },
-                    );
-
-                    if (shouldLogout != true || !context.mounted) return;
-                    try {
-                      await context.read<SessionController>().logout();
-                      if (!context.mounted) return;
-                      Navigator.of(context, rootNavigator: true)
-                          .pushNamedAndRemoveUntil(
-                        AppRoutes.login,
-                        (route) => false,
-                      );
-                    } catch (e) {
-                      if (!context.mounted) return;
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Sign out failed: $e'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                    },
-=======
                     Padding(
                       padding: const EdgeInsets.only(
                         left: AppSpacing.space1,
@@ -390,7 +323,6 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
                     const SizedBox(height: AppSpacing.space4),
                     OutlinedButton.icon(
                       onPressed: () => _signOut(),
->>>>>>> Stashed changes
                       icon: const Icon(Icons.logout_rounded),
                       label: const Text('Sign out'),
                     ),
@@ -403,9 +335,6 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
     );
   }
 }
-<<<<<<< Updated upstream
-=======
-
 class _AccountMiniTile extends StatelessWidget {
   const _AccountMiniTile({
     required this.icon,
@@ -612,4 +541,3 @@ class _EarnReferCard extends StatelessWidget {
     );
   }
 }
->>>>>>> Stashed changes

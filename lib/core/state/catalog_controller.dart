@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' hide Category;
 
+import '../../features/catalog/data/mock/catalog_mock_data.dart';
 import '../../features/catalog/data/mappers/catalog_api_mapper.dart';
 import '../../features/catalog/data/models/api_catalog_product.dart';
 import '../../features/catalog/data/repositories/catalog_repository.dart';
@@ -147,27 +148,6 @@ class CatalogController extends ChangeNotifier {
   }
 
   Brand? brandById(String brandId) {
-<<<<<<< Updated upstream
-    final fromApi = _brandsFromVariants()
-        .where((b) => b.id == brandId)
-        .firstOrNull;
-    if (fromApi != null) return fromApi;
-    return CatalogMockData.brandById(brandId);
-  }
-
-  List<Brand> brandsForPipeCategory() {
-    if (_useApi && _apiVariants.isNotEmpty) {
-      return _brandsFromVariants();
-    }
-    final seen = <String>{};
-    final result = <Brand>[];
-    for (final categoryId in CatalogMockData.plumbingModuleCategoryIds) {
-      for (final brand in CatalogMockData.brandsForCategory(categoryId)) {
-        if (seen.add(brand.id)) result.add(brand);
-      }
-    }
-    return result;
-=======
     return _brandsFromVariants().where((b) => b.id == brandId).firstOrNull;
   }
 
@@ -181,7 +161,6 @@ class CatalogController extends ChangeNotifier {
       if (c.id == id) return c;
     }
     return null;
->>>>>>> Stashed changes
   }
 
   String? _pipesCategoryId() {

@@ -9,6 +9,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/category_image.dart';
 import '../../data/catalog_assets.dart';
+import '../../data/mock/catalog_mock_data.dart';
 import '../../data/pipe_schedule_util.dart';
 import '../../data/mock/upvc_pipe_matrix_data.dart';
 import '../../domain/models/catalog_models.dart';

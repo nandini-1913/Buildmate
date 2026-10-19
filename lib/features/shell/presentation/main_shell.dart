@@ -108,28 +108,6 @@ class _MainShellState extends State<MainShell> {
               );
             }
 
-<<<<<<< Updated upstream
-          return AppRouter.onGenerateRoute(settings);
-        },
-      ),
-      floatingActionButton: index == 0 && !_hasPushedRoute
-          ? FloatingActionButton(
-              onPressed: () => _openInShell(AppRoutes.aiAssistant),
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.onPrimary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              tooltip: 'AI Assistant',
-              child: const Icon(Icons.auto_awesome_rounded),
-            )
-          : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      bottomNavigationBar: AppBottomNavigation(
-        currentIndex: index,
-        onTap: _onTabTap,
-      ),
-=======
             // Escalate auth routes to the root navigator so sign-out / login
             // never remount the shell tabs by mistake.
             if (settings.name == AppRoutes.splash ||
@@ -176,7 +154,6 @@ class _MainShellState extends State<MainShell> {
         //   onTap: _onTabTap,
         // ),
       ),
->>>>>>> Stashed changes
     );
   }
 }

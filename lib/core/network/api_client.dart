@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'api_config.dart';
@@ -20,10 +21,6 @@ class ApiClient {
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.apiPrefix}$path')
         .replace(queryParameters: queryParameters);
-<<<<<<< Updated upstream
-    final response = await _client.get(uri).timeout(timeout);
-    return _decodeEnvelope(response);
-=======
     try {
       if (kDebugMode) {
         print('API GET: $uri');
@@ -42,7 +39,6 @@ class ApiClient {
       }
       rethrow;
     }
->>>>>>> Stashed changes
   }
 
   Future<Map<String, String>> _authHeaders({bool forceRefresh = false}) async {

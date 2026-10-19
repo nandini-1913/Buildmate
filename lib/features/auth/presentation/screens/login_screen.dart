@@ -7,8 +7,8 @@ import '../../../../core/state/session_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../services/auth_service.dart';
-import '../../services/auth_service.dart' as auth_contract;
+import '../../services/auth_service.dart';
+import '../../services/mock_auth_service.dart';
 import '../widgets/auth_validators.dart';
 import '../widgets/login_flow_widgets.dart';
 
@@ -16,7 +16,7 @@ import '../widgets/login_flow_widgets.dart';
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.authService});
 
-  final auth_contract.AuthService? authService;
+  final AuthService? authService;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -24,15 +24,14 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _mobileController = TextEditingController();
-  late final auth_contract.AuthService _auth;
-  String? _error;
+  late final AuthService _auth;
   bool _loading = false;
   bool _isLogin = true;
 
   @override
   void initState() {
     super.initState();
-    _auth = widget.authService ?? PhoneAuthService.instance;
+    _auth = widget.authService ?? MockAuthService();
   }
 
   @override
@@ -48,30 +47,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final mobile = _mobileController.text.trim();
     if (AuthValidators.mobile(mobile) != null) return;
 
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    final result = await _auth.sendOtp(mobileNumber: mobile);
+    setState(() => _loading = true);
+    await _auth.sendOtp(mobileNumber: mobile);
     if (!mounted) return;
     setState(() => _loading = false);
-
-    if (!result.success) {
-      setState(() => _error = result.message ?? 'Could not send OTP.');
-      return;
-    }
-
-    final user = result.user;
-    if (user != null && user.id != 'pending') {
-      if (!mounted) return;
-      await context.read<SessionController>().setFromAuth(user);
-      if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRoutes.homePlaceholder,
-        (_) => false,
-      );
-      return;
-    }
 
     Navigator.of(context).pushNamed(
       AppRoutes.otpVerification,
@@ -226,88 +205,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-<<<<<<< Updated upstream
                 );
               },
-=======
-                ),
-                const SizedBox(height: AppSpacing.space4),
-                const Center(
-                  child: LoginFlowIconBadge(
-                    imageAsset: 'assets/images/branding/app logo.png',
-                    size: 104,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.space5),
-                Text(
-                  loginAppDisplayName,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.space2),
-                Text(
-                  _isLogin
-                      ? 'Welcome back! Login to continue'
-                      : 'Create an account to get started',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.space8),
-                LoginFlowModeToggle(
-                  isLogin: _isLogin,
-                  onChanged: (value) => setState(() => _isLogin = value),
-                ),
-                const SizedBox(height: AppSpacing.space6),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Mobile Number',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.space2),
-                LoginFlowPhoneField(
-                  controller: _mobileController,
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: AppSpacing.space2),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'We\'ll send a 6-digit OTP to verify this number',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.space2),
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.space6),
-                LoginFlowContinueButton(
-                  label: 'Send OTP',
-                  enabled: _canContinue,
-                  loading: _loading,
-                  onPressed: _continue,
-                ),
-                const SizedBox(height: AppSpacing.space8),
-                const LoginFlowTermsFooter(),
-              ],
->>>>>>> Stashed changes
             ),
           ),
         ),

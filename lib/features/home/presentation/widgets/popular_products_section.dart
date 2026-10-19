@@ -157,9 +157,6 @@ class PopularProductCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: AppSpacing.space3),
-<<<<<<< Updated upstream
-              ProductActionBar(product: product, compact: true),
-=======
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
@@ -170,7 +167,6 @@ class PopularProductCard extends StatelessWidget {
                   child: const Text('Add to cart'),
                 ),
               ),
->>>>>>> Stashed changes
             ],
           ),
         ),

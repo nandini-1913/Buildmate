@@ -59,60 +59,6 @@ class _HomeAppBarState extends State<HomeAppBar> {
           constraints: const BoxConstraints(minHeight: AppSpacing.space14),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-<<<<<<< Updated upstream
-            child: Row(
-              children: [
-                Expanded(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: AppSpacing.space6,
-                        height: AppSpacing.space6,
-                        child: Image.asset(
-                          AppConstants.appLogoAsset,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.space2),
-                      Flexible(
-                        child: Text.rich(
-                          TextSpan(
-                            children: [
-                              TextSpan(
-                                text: AppConstants.appNameLead,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              TextSpan(
-                                text: AppConstants.appNameTail,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: AppColors.onSurface,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
-                            ],
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: widget.onRewards,
-                  tooltip: 'My Rewards',
-                  icon: Badge(
-                    isLabelVisible: rewardPoints > 0,
-                    backgroundColor: AppColors.secondary,
-                    label: Text(
-                      rewardPoints > 999 ? '999+' : '$rewardPoints',
-                      style: const TextStyle(fontSize: 10, color: Colors.white),
-=======
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final actions = Row(
@@ -253,7 +199,6 @@ class _HomeAppBarState extends State<HomeAppBar> {
                           ),
                         ],
                       ),
->>>>>>> Stashed changes
                     ),
                     actions,
                   ],
