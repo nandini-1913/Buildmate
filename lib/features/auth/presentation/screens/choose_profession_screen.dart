@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/state/session_controller.dart';
+import '../../../../services/auth_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../domain/models/auth_models.dart';
@@ -67,27 +69,54 @@ class _ChooseProfessionScreenState extends State<ChooseProfessionScreen> {
   ];
 
   int? _selectedIndex;
+  bool _saving = false;
 
   Future<void> _continue() async {
-    if (_selectedIndex == null) return;
+    if (_selectedIndex == null || _saving) return;
     final option = _options[_selectedIndex!];
 
-    await context.read<SessionController>().setFromAuth(
-      AuthUser(
-        id: 'user-mobile-${widget.args.mobileNumber}',
-        email: widget.args.email,
-        fullName: widget.args.fullName,
-        mobileNumber: widget.args.mobileNumber,
-        role: option.role,
-        referralCode: widget.args.referralCode,
-      ),
-    );
+    setState(() => _saving = true);
+    try {
+      final firebaseUser = await PhoneAuthService.instance.currentAuthUser();
+      final mobile = widget.args.mobileNumber.trim();
+      final resolvedMobile = mobile.isNotEmpty
+          ? mobile
+          : (firebaseUser?.mobileNumber ?? '').trim();
+      final userId = (firebaseUser != null && firebaseUser.id.isNotEmpty)
+          ? firebaseUser.id
+          : 'user-mobile-$resolvedMobile';
+      final fullName = widget.args.fullName.trim();
+      final resolvedName =
+          fullName.isNotEmpty ? fullName : firebaseUser?.fullName;
 
-    if (!mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      AppRoutes.homePlaceholder,
-      (_) => false,
-    );
+      await context.read<SessionController>().setFromAuth(
+        AuthUser(
+          id: userId,
+          email: widget.args.email,
+          fullName: resolvedName,
+          mobileNumber: resolvedMobile.isNotEmpty ? resolvedMobile : null,
+          role: option.role,
+          referralCode: widget.args.referralCode,
+        ),
+      );
+
+      if (!mounted) return;
+      await Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+        AppRoutes.homePlaceholder,
+        (_) => false,
+      );
+    } catch (e, st) {
+      debugPrint('ChooseProfession continue failed: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not continue. Please try again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -228,7 +257,8 @@ class _ChooseProfessionScreenState extends State<ChooseProfessionScreen> {
               const SizedBox(height: AppSpacing.space4),
               LoginFlowContinueButton(
                 label: 'Continue',
-                enabled: _selectedIndex != null,
+                enabled: _selectedIndex != null && !_saving,
+                loading: _saving,
                 onPressed: _continue,
               ),
             ],

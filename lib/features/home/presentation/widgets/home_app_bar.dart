@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/state/cart_controller.dart';
 import '../../../../core/state/reward_controller.dart';
 import '../../../../core/state/session_controller.dart';
@@ -159,7 +160,7 @@ class _HomeAppBarState extends State<HomeAppBar> {
                             width: AppSpacing.space6,
                             height: AppSpacing.space6,
                             child: Image.asset(
-                              'assets/images/branding/app logo.png',
+                              AppConstants.appLogoAsset,
                               fit: BoxFit.contain,
                               errorBuilder: (context, error, stackTrace) {
                                 return Icon(

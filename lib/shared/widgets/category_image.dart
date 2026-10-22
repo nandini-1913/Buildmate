@@ -45,10 +45,20 @@ class CategoryImage extends StatelessWidget {
       ),
     );
 
-    if (imageAsset.isEmpty && (imageUrl == null || imageUrl!.isEmpty)) {
+    if (imageAsset.isNotEmpty) {
       return ClipRRect(
         borderRadius: radius,
-        child: SizedBox(width: width, height: height, child: fallback),
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Image.asset(
+            imageAsset,
+            fit: fit,
+            width: width,
+            height: height,
+            errorBuilder: (context, error, stackTrace) => fallback,
+          ),
+        ),
       );
     }
 
@@ -74,26 +84,9 @@ class CategoryImage extends StatelessWidget {
       );
     }
 
-    if (imageAsset.isEmpty) {
-      return ClipRRect(
-        borderRadius: radius,
-        child: SizedBox(width: width, height: height, child: fallback),
-      );
-    }
-
     return ClipRRect(
       borderRadius: radius,
-      child: SizedBox(
-        width: width,
-        height: height,
-        child: Image.asset(
-          imageAsset,
-          fit: fit,
-          width: width,
-          height: height,
-          errorBuilder: (context, error, stackTrace) => fallback,
-        ),
-      ),
+      child: SizedBox(width: width, height: height, child: fallback),
     );
   }
 

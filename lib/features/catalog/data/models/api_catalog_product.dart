@@ -56,34 +56,56 @@ class ApiCatalogProduct {
   final bool isActive;
   final String? updatedAt;
 
+  /// MRP for display — ignores zero placeholders from the API.
+  double get resolvedMrp {
+    if (mrp != null && mrp! > 0) return mrp!;
+    if (standardRate > 0) return standardRate;
+    return 0;
+  }
+
+  /// Selling price — falls back to MRP / standard rate when selling is 0 or null.
+  double get resolvedSelling {
+    if (sellingPrice != null && sellingPrice! > 0) return sellingPrice!;
+    if (standardRate > 0) return standardRate;
+    return resolvedMrp;
+  }
+
   factory ApiCatalogProduct.fromJson(Map<String, dynamic> json) {
     return ApiCatalogProduct(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       category: json['category']?.toString() ?? '',
       unit: json['unit']?.toString() ?? 'pcs',
-      standardRate: _toDouble(json['standardRate']) ?? 0,
-      productCode: _nullableString(json['productCode']),
-      productName: _nullableString(json['productName']),
+      standardRate: _firstPositive(
+            json,
+            const ['standardRate', 'standard_rate', 'rate', 'price'],
+          ) ??
+          0,
+      productCode: _nullableString(json['productCode'] ?? json['product_code']),
+      productName: _nullableString(json['productName'] ?? json['product_name']),
       type: _nullableString(json['type']),
-      productGroup: _nullableString(json['productGroup']),
-      productClass: _nullableString(json['productClass']),
-      subcategory: _nullableString(json['subcategory']),
-      subcategoryId: _nullableString(json['subcategoryId']),
+      productGroup: _nullableString(json['productGroup'] ?? json['product_group']),
+      productClass: _nullableString(json['productClass'] ?? json['product_class']),
+      subcategory: _nullableString(json['subcategory'] ?? json['sub_category']),
+      subcategoryId:
+          _nullableString(json['subcategoryId'] ?? json['subcategory_id']),
       brand: _nullableString(json['brand']),
-      brandId: _nullableString(json['brandId']),
+      brandId: _nullableString(json['brandId'] ?? json['brand_id']),
       size: _nullableString(json['size']),
-      sizeMm: _toDouble(json['sizeMm']),
-      sizeInch: _nullableString(json['sizeInch']),
+      sizeMm: _toDouble(json['sizeMm'] ?? json['size_mm']),
+      sizeInch: _nullableString(json['sizeInch'] ?? json['size_inch']),
       length: _nullableString(json['length']),
-      stdPkg: _nullableString(json['stdPkg']),
-      mrp: _toDouble(json['mrp']),
-      sellingPrice: _toDouble(json['sellingPrice']),
-      discount: _toDouble(json['discount']),
+      stdPkg: _nullableString(json['stdPkg'] ?? json['std_pkg']),
+      mrp: _firstPositive(json, const ['mrp', 'MRP']),
+      sellingPrice: _firstPositive(
+        json,
+        const ['sellingPrice', 'selling_price', 'salePrice', 'sale_price'],
+      ),
+      discount: _toDouble(json['discount'] ?? json['discount_rate']),
       stock: _toDouble(json['stock']),
       imageUrl: _nullableString(json['imageUrl'] ?? json['image_url']),
-      isActive: json['isActive'] != false,
-      updatedAt: _nullableString(json['updatedAt']),
+      isActive: json['isActive'] != false && json['is_active'] != false,
+      updatedAt: _nullableString(json['updatedAt'] ?? json['updated_at']),
     );
   }
 
@@ -120,5 +142,16 @@ class ApiCatalogProduct {
     if (value is num) return value.toDouble();
     final parsed = double.tryParse(value.toString().replaceAll(',', '').trim());
     return parsed;
+  }
+
+  static double? _firstPositive(
+    Map<String, dynamic> json,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = _toDouble(json[key]);
+      if (value != null && value > 0) return value;
+    }
+    return null;
   }
 }

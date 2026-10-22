@@ -74,7 +74,9 @@ abstract final class HomeDashboardCategories {
       icon: c.icon,
       iconColor: c.iconColor,
       iconBackground: c.iconBackground,
-      imageAsset: _imageAssetForName(c.name),
+      imageAsset: c.imageAsset.isNotEmpty
+          ? c.imageAsset
+          : _imageAssetForName(c.name),
       imageUrl: c.imageUrl,
     );
   }

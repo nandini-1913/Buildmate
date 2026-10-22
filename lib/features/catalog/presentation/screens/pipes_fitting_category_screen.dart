@@ -66,8 +66,15 @@ class _CategoryProductGroup {
   final String className;
   final List<PipesFittingProduct> products;
 
-  double get minMrp =>
-      products.map((p) => p.displayPrice).reduce((a, b) => a < b ? a : b);
+  /// Lowest customer price among SKUs with a positive price (ignores unset API rows).
+  double get minMrp {
+    final prices = products
+        .map((p) => p.displayPrice)
+        .where((price) => price > 0)
+        .toList();
+    if (prices.isEmpty) return 0;
+    return prices.reduce((a, b) => a < b ? a : b);
+  }
 
   String get unit => products.isNotEmpty ? products.first.unit : 'pcs';
 
@@ -331,13 +338,174 @@ List<_CategoryProductGroup> splitGroupByProductClass(
       .toList();
 }
 
-bool _groupMatchesClass(_CategoryProductGroup group, String classFilter) {
-  return group.products.any(
-    (p) => PipeFilterClasses.matches(
-      _productClassLabel(p, group.className),
-      classFilter,
-    ),
+bool _productMatchesClassSelection(
+  PipesFittingProduct product,
+  String groupClassName,
+  String classFilter,
+) {
+  final label = _productClassLabel(product, groupClassName);
+  return PipeFilterClasses.matches(label, classFilter) ||
+      PipeConfiguratorClasses.matchesCanonical(classFilter, label);
+}
+
+/// Class filter labels for the header dropdown — only classes that exist on the server.
+List<String> pipeClassFilterOptionsForCatalog(
+  PipesFittingCatalog catalog,
+  String? typeName,
+) {
+  final serverLabels = <String>{};
+  final types = typeName == null
+      ? catalog.types
+      : catalog.types.where(
+          (type) => type.type.toLowerCase() == typeName.toLowerCase(),
+        );
+  for (final type in types) {
+    for (final subCategory in type.subCategories) {
+      for (final pipeClass in subCategory.classes) {
+        final className = pipeClass.className.trim();
+        if (className.isNotEmpty) serverLabels.add(className);
+        for (final product in pipeClass.products) {
+          final label = _productClassLabel(product, pipeClass.className).trim();
+          if (label.isNotEmpty) serverLabels.add(label);
+        }
+      }
+    }
+  }
+
+  final seen = <String>{};
+  final ordered = <String>[];
+  void add(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    final key = trimmed.toLowerCase();
+    if (seen.add(key)) ordered.add(trimmed);
+  }
+
+  final canonical = PipeConfiguratorClasses.optionsForType(typeName);
+  if (canonical.isNotEmpty) {
+    for (final canon in canonical) {
+      final hasProduct = serverLabels.any(
+        (server) => PipeConfiguratorClasses.matchesCanonical(canon, server),
+      );
+      if (hasProduct) add(canon);
+    }
+    for (final server in serverLabels) {
+      final mapped = canonical.any(
+        (canon) => PipeConfiguratorClasses.matchesCanonical(canon, server),
+      );
+      if (!mapped) add(server);
+    }
+  } else {
+    for (final server in serverLabels) {
+      add(server);
+    }
+  }
+
+  ordered.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  return ordered;
+}
+
+List<String> pipeClassOptionsForFamily(
+  List<_CategoryProductGroup> familyGroups, {
+  String? typeName,
+}) {
+  final serverLabels = <String>{};
+  for (final group in familyGroups) {
+    for (final product in group.products) {
+      final label = _productClassLabel(product, group.className).trim();
+      if (label.isNotEmpty) serverLabels.add(label);
+    }
+  }
+
+  final canonical = PipeConfiguratorClasses.optionsForType(typeName);
+  if (canonical.isNotEmpty) {
+    final options = <String>[];
+    for (final canon in canonical) {
+      if (serverLabels.any(
+        (server) => PipeConfiguratorClasses.matchesCanonical(canon, server),
+      )) {
+        options.add(canon);
+      }
+    }
+    if (options.isNotEmpty) return options;
+  }
+
+  final list = serverLabels.toList();
+  list.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  return list;
+}
+
+String pipeClassOptionMatchingLabel(
+  List<String> options,
+  String currentLabel,
+) {
+  for (final option in options) {
+    if (PipeConfiguratorClasses.matchesCanonical(option, currentLabel) ||
+        PipeFilterClasses.matches(option, currentLabel)) {
+      return option;
+    }
+  }
+  return currentLabel;
+}
+
+double listPriceForProductGroup(
+  _CategoryProductGroup group,
+  CatalogController catalog,
+) {
+  final prices = <double>[];
+  for (final product in group.products) {
+    var value = product.displayPrice;
+    if (value <= 0 && product.id != null) {
+      final live = catalog.variantById(product.id!);
+      if (live != null && live.price > 0) value = live.price;
+    }
+    if (value > 0) prices.add(value);
+  }
+  if (prices.isEmpty) return 0;
+  return prices.reduce((a, b) => a < b ? a : b);
+}
+
+_CategoryProductGroup _groupWithClassFilter(
+  _CategoryProductGroup group,
+  String classFilter,
+) {
+  final filtered = group.products
+      .where(
+        (p) => _productMatchesClassSelection(p, group.className, classFilter),
+      )
+      .toList();
+  if (filtered.isEmpty) return group;
+  return _CategoryProductGroup(
+    title: group.title,
+    subCategory: group.subCategory,
+    className: classFilter,
+    products: filtered,
   );
+}
+
+List<PipesFittingProduct> _catalogProductsForSection(
+  PipesFittingCatalog catalog,
+  String? typeName,
+  String? subCategory,
+) {
+  final types = typeName == null
+      ? catalog.types
+      : catalog.types.where(
+          (type) => type.type.toLowerCase() == typeName.toLowerCase(),
+        );
+  final products = <PipesFittingProduct>[];
+  for (final type in types) {
+    for (final sub in type.subCategories) {
+      if (subCategory != null &&
+          sub.subCategory.toLowerCase() != subCategory.toLowerCase()) {
+        continue;
+      }
+      for (final cls in sub.classes) {
+        products.addAll(cls.products);
+      }
+    }
+  }
+  return products;
 }
 
 List<_CategoryProductGroup> buildPipeCatalogGroupsForSection(
@@ -615,28 +783,8 @@ class _PipesFittingCategoryScreenState
   List<String> _classNamesForCatalog(
     PipesFittingCatalog catalog,
     String? typeName,
-  ) {
-    final classes = <String>[];
-    final types = typeName == null
-        ? catalog.types
-        : catalog.types.where(
-            (type) => type.type.toLowerCase() == typeName.toLowerCase(),
-          );
-    for (final type in types) {
-      for (final subCategory in type.subCategories) {
-        for (final pipeClass in subCategory.classes) {
-          if (pipeClass.className.isNotEmpty &&
-              !classes.any(
-                (name) =>
-                    name.toLowerCase() == pipeClass.className.toLowerCase(),
-              )) {
-            classes.add(pipeClass.className);
-          }
-        }
-      }
-    }
-    return classes;
-  }
+  ) =>
+      pipeClassFilterOptionsForCatalog(catalog, typeName);
 
   List<String> _sizeNamesForCatalog(PipesFittingCatalog catalog) {
     final sizes = _groupsForSection(catalog, _selectedType, _subCategory)
@@ -683,7 +831,10 @@ class _PipesFittingCategoryScreenState
       groups = groups.where((g) => _matchesSize(g, _size!)).toList();
     }
     if (_class != null) {
-      groups = groups.where((g) => _groupMatchesClass(g, _class!)).toList();
+      groups = groups
+          .map((g) => _groupWithClassFilter(g, _class!))
+          .where((g) => g.products.isNotEmpty)
+          .toList();
     }
 
     switch (_sort) {
@@ -1478,7 +1629,12 @@ class _ClassDropdownMenuState extends State<_ClassDropdownMenu> {
         for (final name in classes)
           _DropdownTile(
             label: name,
-            selected: widget.selectedClass == name,
+            selected: widget.selectedClass != null &&
+                (PipeFilterClasses.matches(widget.selectedClass!, name) ||
+                    PipeConfiguratorClasses.matchesCanonical(
+                      widget.selectedClass!,
+                      name,
+                    )),
             onTap: () => widget.onSelected(name),
           ),
       ],
@@ -2137,7 +2293,8 @@ class _CategoryProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final price = group.minMrp;
+    final catalogCtrl = context.watch<CatalogController>();
+    final price = listPriceForProductGroup(group, catalogCtrl);
 
     return Material(
       color: AppColors.surface,
@@ -2365,11 +2522,11 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
   }
 
   List<_CategoryProductGroup> _groupsForCurrentClass(BuildContext context) {
+    final classFilter = _productClassLabel(_product, _group.className);
     return _familyGroups(context)
         .where(
-          (g) => PipeConfiguratorClasses.sameClassBucket(
-            g.className,
-            _group.className,
+          (g) => g.products.any(
+            (p) => _productMatchesClassSelection(p, g.className, classFilter),
           ),
         )
         .toList();
@@ -2458,24 +2615,26 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
   }
 
   List<String> _classOptions(BuildContext context) {
-    final typeName = _resolvedPipeType(context);
-    final canonical = PipeConfiguratorClasses.optionsForType(typeName);
-    if (canonical.isNotEmpty) return canonical;
+    return pipeClassOptionsForFamily(
+      _familyGroups(context),
+      typeName: _resolvedPipeType(context),
+    );
+  }
 
-    final seen = <String>{};
-    final classes = <String>[];
-    for (final g in _familyGroups(context)) {
-      for (final p in g.products) {
-        final name = _productClassLabel(p, g.className).trim();
-        if (name.isEmpty) continue;
-        final key = name.toLowerCase();
-        if (seen.add(key)) classes.add(name);
-      }
-    }
-    classes.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-    final current = _group.className.trim();
-    if (classes.isEmpty && current.isNotEmpty) classes.add(current);
-    return classes;
+  String _selectedClassOption(BuildContext context) {
+    final options = _classOptions(context);
+    final current = _productClassLabel(_product, _group.className);
+    return pipeClassOptionMatchingLabel(options, current);
+  }
+
+  double _resolvedProductPrice(BuildContext context) {
+    var value = _product.displayPrice;
+    if (value > 0) return value;
+    final id = _product.id;
+    if (id == null) return value;
+    final live = context.read<CatalogController>().variantById(id);
+    if (live != null && live.price > 0) return live.price;
+    return value;
   }
 
   _CategoryProductGroup? _groupForClass(
@@ -2594,14 +2753,13 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
     }
   }
 
-  void _onClassChanged(BuildContext context, String? className) {
-    if (className == null || className.isEmpty) return;
-    final newGroup = _groupForClass(context, className);
-    if (newGroup == null) return;
-    if (PipeConfiguratorClasses.matchesCanonical(
-      className,
-      _group.className,
-    )) {
+  void _onClassChanged(BuildContext context, String className) {
+    if (className.isEmpty) return;
+
+    final currentClass = _productClassLabel(_product, _group.className);
+    if (_productMatchesClassSelection(_product, _group.className, className) &&
+        (PipeConfiguratorClasses.matchesCanonical(className, currentClass) ||
+            PipeFilterClasses.matches(className, currentClass))) {
       return;
     }
 
@@ -2609,65 +2767,69 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
       _product,
       subCategory: widget.subCategory,
     );
-    final targetGroups = _catalogPool(context).where((g) {
-      if (g.subCategory.toLowerCase() != widget.subCategory.toLowerCase()) {
-        return false;
+    final brand = _product.brand;
+    final size = _product.size;
+
+    PipesFittingProduct? best;
+    _CategoryProductGroup? bestGroup;
+    var bestScore = -1;
+
+    void consider(PipesFittingProduct product, _CategoryProductGroup group) {
+      if (_productFamilyKey(product, subCategory: widget.subCategory) !=
+          familyKey) {
+        return;
       }
-      if (!PipeConfiguratorClasses.matchesCanonical(className, g.className)) {
-        return false;
+      if (!_productMatchesClassSelection(
+        product,
+        group.className,
+        className,
+      )) {
+        return;
       }
-      return g.products.any(
-        (p) =>
-            _productFamilyKey(p, subCategory: widget.subCategory) == familyKey,
+
+      var score = 0;
+      if (_pipeBrandMatches(product.brand, brand)) score += 100;
+      if (_pipeSizeMatches(product.size, size)) score += 50;
+      if (product.displayPrice > 0) score += 10;
+      if (score > bestScore) {
+        bestScore = score;
+        best = product;
+        bestGroup = group;
+      }
+    }
+
+    for (final group in _familyGroups(context)) {
+      for (final product in group.products) {
+        consider(product, group);
+      }
+    }
+
+    final catalog = context.read<CatalogController>().pipesFittingCatalog;
+    if (best == null && catalog != null) {
+      final dummyGroup = _group;
+      for (final product in _catalogProductsForSection(
+        catalog,
+        _resolvedPipeType(context),
+        widget.subCategory,
+      )) {
+        consider(product, dummyGroup);
+      }
+    }
+
+    if (best == null || bestGroup == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No $className option for this product line'),
+          duration: const Duration(seconds: 2),
+        ),
       );
-    }).toList();
-
-    final candidates = targetGroups.isNotEmpty ? targetGroups : [newGroup];
-
-    // 1. Both brand and size match
-    for (final g in candidates) {
-      for (final p in g.products) {
-        if (_pipeBrandMatches(p.brand, _product.brand) &&
-            _pipeSizeMatches(p.size, _product.size)) {
-          setState(() {
-            _group = g;
-            _product = p;
-          });
-          return;
-        }
-      }
+      return;
     }
 
-    // 2. Brand matches
-    for (final g in candidates) {
-      for (final p in g.products) {
-        if (_pipeBrandMatches(p.brand, _product.brand)) {
-          setState(() {
-            _group = g;
-            _product = p;
-          });
-          return;
-        }
-      }
-    }
-
-    // 3. Size matches
-    for (final g in candidates) {
-      for (final p in g.products) {
-        if (_pipeSizeMatches(p.size, _product.size)) {
-          setState(() {
-            _group = g;
-            _product = p;
-          });
-          return;
-        }
-      }
-    }
-
-    // 4. First product in newGroup
+    final nextGroup = _groupWithClassFilter(bestGroup!, className);
     setState(() {
-      _group = newGroup;
-      _product = newGroup.products.first;
+      _group = nextGroup;
+      _product = best!;
     });
   }
 
@@ -2899,7 +3061,7 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
                     const SizedBox(height: AppSpacing.space2),
                     ConfiguratorOptionGrid(
                       options: _classOptions(context),
-                      selectedOption: _group.className,
+                      selectedOption: _selectedClassOption(context),
                       onOptionSelected: (className) =>
                           _onClassChanged(context, className),
                       isSelected: (option, selected) =>
@@ -2932,7 +3094,7 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
                     const SizedBox(height: AppSpacing.space4),
                     _ConfiguratorAddToCartCard(
                       selectedSizeLabel: _product.size ?? '—',
-                      price: _product.displayPrice,
+                      price: _resolvedProductPrice(context),
                       unit: _group.unit,
                       onAddToCart: _inStock(_product) ? _addToCart : null,
                     ),

@@ -7,8 +7,8 @@ import '../../../../core/state/session_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../services/auth_service.dart' as firebase_auth;
 import '../../services/auth_service.dart';
-import '../../services/mock_auth_service.dart';
 import '../widgets/auth_validators.dart';
 import '../widgets/login_flow_widgets.dart';
 
@@ -27,11 +27,12 @@ class _LoginScreenState extends State<LoginScreen> {
   late final AuthService _auth;
   bool _loading = false;
   bool _isLogin = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _auth = widget.authService ?? MockAuthService();
+    _auth = widget.authService ?? firebase_auth.PhoneAuthService.instance;
   }
 
   @override
@@ -47,10 +48,32 @@ class _LoginScreenState extends State<LoginScreen> {
     final mobile = _mobileController.text.trim();
     if (AuthValidators.mobile(mobile) != null) return;
 
-    setState(() => _loading = true);
-    await _auth.sendOtp(mobileNumber: mobile);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    final result = await _auth.sendOtp(mobileNumber: mobile);
     if (!mounted) return;
     setState(() => _loading = false);
+
+    if (!result.success) {
+      setState(() {
+        _error = result.message ?? 'Could not send OTP. Please try again.';
+      });
+      return;
+    }
+
+    final user = result.user;
+    if (user != null && user.id != 'pending' && user.id.isNotEmpty) {
+      await context.read<SessionController>().setFromAuth(user);
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.homePlaceholder,
+        (_) => false,
+      );
+      return;
+    }
 
     Navigator.of(context).pushNamed(
       AppRoutes.otpVerification,
@@ -192,6 +215,15 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
+                          if (_error != null) ...[
+                            const SizedBox(height: AppSpacing.space2),
+                            Text(
+                              _error!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppColors.error,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: AppSpacing.space6),
                           LoginFlowContinueButton(
                             label: 'Send OTP',

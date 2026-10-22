@@ -99,6 +99,23 @@ void main() {
     expect(CatalogApiMapper.stockStatusFromQuantity(0), StockStatus.inStock);
   });
 
+  test('uses MRP when API sends sellingPrice 0', () {
+    final item = ApiCatalogProduct.fromJson({
+      'id': 'sku-1',
+      'name': 'UPVC Pipe',
+      'category': 'PIPES & FITTING',
+      'unit': 'Nos',
+      'mrp': 486,
+      'sellingPrice': 0,
+      'discount': 49,
+      'standardRate': 0,
+    });
+
+    final tree = CatalogApiMapper.toPipesFittingCatalog([item]);
+    final product = tree.types.first.subCategories.first.classes.first.products.first;
+    expect(product.displayPrice, 486);
+  });
+
   test('inactive API items are excluded', () {
     const item = ApiCatalogProduct(
       id: 'cat-2',

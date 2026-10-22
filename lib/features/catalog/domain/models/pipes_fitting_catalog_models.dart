@@ -37,7 +37,11 @@ class PipesFittingProduct {
   final String unit;
   final String? productClass;
 
-  double get displayPrice => sellingPrice ?? mrp;
+  double get displayPrice {
+    if (sellingPrice != null && sellingPrice! > 0) return sellingPrice!;
+    if (mrp > 0) return mrp;
+    return 0;
+  }
 
   factory PipesFittingProduct.fromJson(Map<String, dynamic> json) {
     return PipesFittingProduct(

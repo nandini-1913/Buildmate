@@ -11,7 +11,6 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../services/auth_service.dart';
 import '../../services/auth_service.dart' as auth_contract;
-import '../../services/mock_auth_service.dart';
 import '../widgets/auth_otp_fields.dart';
 import '../widgets/login_flow_widgets.dart';
 
@@ -50,10 +49,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   @override
   void initState() {
     super.initState();
-    _auth = widget.authService ??
-        (_isPasswordReset
-            ? MockAuthService()
-            : PhoneAuthService.instance);
+    _auth = widget.authService ?? PhoneAuthService.instance;
     _contact = widget.args.contactDisplay;
     _startTimer();
   }
@@ -107,8 +103,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         );
         return;
       case OtpPurpose.mobileLogin:
-        // Existing user — verified mock account already carries a profile,
-        // so skip straight to the home shell instead of the signup steps.
         await context.read<SessionController>().setFromAuth(result.user!);
         if (!mounted) return;
         Navigator.of(context).pushNamedAndRemoveUntil(

@@ -49,3 +49,10 @@ flutter:
     - assets/images/brands/
     - assets/images/pipes/
     - assets/images/professions/
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/images/branding/AppLogo.png
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: assets/images/branding/AppLogo.png

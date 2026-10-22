@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -34,15 +32,11 @@ Future<void> main() async {
   );
 
   final sessionController = SessionController();
-  runApp(BuildMateApp(sessionController: sessionController));
-  unawaited(_initializeServices(sessionController));
-}
-
-Future<void> _initializeServices(SessionController sessionController) async {
-  final firebaseInitialization = FirebaseBootstrap.initialize();
+  await FirebaseBootstrap.initialize();
   await sessionController.restore();
-  await firebaseInitialization;
   await sessionController.syncFromFirebase();
+
+  runApp(BuildMateApp(sessionController: sessionController));
 }
 
 class BuildMateApp extends StatelessWidget {

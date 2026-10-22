@@ -268,8 +268,8 @@ abstract final class CatalogApiMapper {
   }
 
   static PipesFittingProduct _toPipesFittingProduct(ApiCatalogProduct item) {
-    final mrp = item.mrp ?? item.standardRate;
-    final selling = item.sellingPrice ?? item.standardRate;
+    final mrp = item.resolvedMrp;
+    final selling = item.resolvedSelling;
     return PipesFittingProduct(
       id: item.id,
       brand: item.brand ?? 'Unknown',
@@ -301,8 +301,8 @@ abstract final class CatalogApiMapper {
     final subCategoryName = resolveSubCategory(item);
     final brandName = item.brand ?? 'Unknown';
     final brandId = item.brandId ?? _brandIdFromName(brandName);
-    final mrp = item.mrp ?? item.standardRate;
-    final selling = item.sellingPrice ?? item.standardRate;
+    final mrp = item.resolvedMrp;
+    final selling = item.resolvedSelling;
     final discountRate = _resolveDiscountRate(
       discountField: item.discount,
       mrp: mrp,
