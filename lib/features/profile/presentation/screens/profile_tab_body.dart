@@ -41,8 +41,15 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
+  bool _isRealUser(SessionController session) {
+    final user = session.user;
+    return session.isLoggedIn && !user.isGuest && user.id != 'guest';
+  }
+
   Future<void> _load() async {
-    final user = context.read<SessionController>().user;
+    final session = context.read<SessionController>();
+    if (!_isRealUser(session)) return;
+    final user = session.user;
     await Future.wait([
       context.read<RewardController>().refreshForUser(user.id),
       context.read<ProfileController>().loadForUser(user),
@@ -145,11 +152,59 @@ class _ProfileTabBodyState extends State<ProfileTabBody> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<SessionController>().user;
+    final theme = Theme.of(context);
+    final session = context.watch<SessionController>();
+    if (!_isRealUser(session)) {
+      return ColoredBox(
+        color: AppColors.background,
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.space6),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.person_outline_rounded,
+                    size: 64,
+                    color: AppColors.primary.withValues(alpha: 0.7),
+                  ),
+                  const SizedBox(height: AppSpacing.space4),
+                  Text(
+                    'Sign in to view your profile',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSpacing.space2),
+                  Text(
+                    'Use your mobile number and OTP to access account details.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSpacing.space6),
+                  FilledButton(
+                    onPressed: () => Navigator.of(
+                      context,
+                      rootNavigator: true,
+                    ).pushNamedAndRemoveUntil(AppRoutes.login, (_) => false),
+                    child: const Text('Sign in'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final user = session.user;
     final details = context.watch<ProfileController>().details;
     final orderHistory = context.watch<OrderHistoryController>().orders;
     final balance = context.watch<RewardController>().balance;
-    final theme = Theme.of(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,

@@ -7,19 +7,20 @@
 /// Configure at build/run time (optional override):
 /// `flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000`
 ///
-/// Android emulator → host machine: `http://10.0.2.2:8000`
-/// Physical device on same Wi‑Fi → `http://<laptop-lan-ip>:8000`
+/// Production default: [defaultBaseUrl]. Local dev: emulator → `http://10.0.2.2:8000`.
 ///
 abstract final class ApiConfig {
+  static const String defaultBaseUrl = 'https://dash.buildmate24x7.com';
+
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://187.127.148.44',
+    defaultValue: defaultBaseUrl,
   );
 
   static const String apiPrefix = '/api';
 
   static String get catalogUrl => '$baseUrl$apiPrefix/catalog';
 
-  /// Poll interval for near-real-time catalog refresh during customer demo.
-  static const Duration catalogPollInterval = Duration(seconds: 3);
+  /// Background catalog refresh while the app is open (avoid hammering the API).
+  static const Duration catalogPollInterval = Duration(seconds: 45);
 }

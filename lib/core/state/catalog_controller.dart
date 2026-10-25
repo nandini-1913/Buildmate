@@ -2,11 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' hide Category;
 
+import '../../features/catalog/data/catalog_fallback_loader.dart';
 import '../../features/catalog/data/mock/catalog_mock_data.dart';
 import '../../features/catalog/data/mappers/catalog_api_mapper.dart';
 import '../../features/catalog/data/models/api_catalog_product.dart';
 import '../../features/catalog/data/repositories/catalog_repository.dart';
+import '../network/api_client.dart';
 import '../../features/catalog/domain/models/catalog_models.dart';
+import '../../features/catalog/domain/models/category_module_kind.dart';
 import '../../features/catalog/domain/models/pipes_fitting_catalog_models.dart';
 import '../network/api_config.dart';
 
@@ -21,6 +24,8 @@ class CatalogController extends ChangeNotifier {
 
   Timer? _pollTimer;
   bool _disposed = false;
+  bool _catalogRefreshInFlight = false;
+  bool _catalogRefreshQueued = false;
   bool _isLoading = false;
   bool _isHomeLoading = false;
   bool _isPolling = false;
@@ -29,6 +34,7 @@ class CatalogController extends ChangeNotifier {
   List<ProductVariant> _apiVariants = const [];
   List<Category> _categories = const [];
   PipesFittingCatalog? _pipesFittingCatalog;
+  PipesFittingCatalog? _electricalsCatalog;
   Map<String, String> _pipeMaterialTypeImages = const {};
   String _apiSyncToken = '';
 
@@ -54,6 +60,15 @@ class CatalogController extends ChangeNotifier {
 
   /// Hierarchical catalog for the Pipes & Fitting category screen.
   PipesFittingCatalog? get pipesFittingCatalog => _pipesFittingCatalog;
+
+  /// Hierarchical catalog for the Electricals category screen.
+  PipesFittingCatalog? get electricalsCatalog => _electricalsCatalog;
+
+  PipesFittingCatalog? catalogFor(CategoryModuleKind module) {
+    return module == CategoryModuleKind.electricals
+        ? _electricalsCatalog
+        : _pipesFittingCatalog;
+  }
 
   /// `GET /api/subcategories` images keyed for UPVC / CPVC / PVC type tiles.
   Map<String, String> get pipeMaterialTypeImages => _pipeMaterialTypeImages;
@@ -172,7 +187,18 @@ class CatalogController extends ChangeNotifier {
     return null;
   }
 
+  String? _electricalCategoryId() {
+    for (final c in _categories) {
+      if (CatalogApiMapper.isElectricalCategory(c.name)) {
+        return c.id;
+      }
+    }
+    return null;
+  }
+
   String? get pipesCategoryId => _pipesCategoryId();
+
+  String? get electricalCategoryId => _electricalCategoryId();
 
   List<ProductVariant> variantsByBrand(String brandId) =>
       _apiVariants.where((v) => v.brandId == brandId).toList();
@@ -386,23 +412,7 @@ class CatalogController extends ChangeNotifier {
     }
 
     try {
-      final categoriesFuture = _repository.fetchCategories();
-      final catalogFuture = _repository.fetchPipeCatalog();
-      final categories = await categoriesFuture;
-      final items = await catalogFuture;
-      if (_disposed) return;
-
-      _categories = categories;
-      await _applyCatalogItems(items);
-      _error = null;
-      notifyListeners();
-    } catch (e) {
-      if (_disposed) return;
-      _error = e.toString();
-      if (_apiVariants.isEmpty && _categories.isEmpty) {
-        _useApi = false;
-      }
-      notifyListeners();
+      await _refreshCatalogFromServer(showPipeLoading: false);
     } finally {
       if (!_disposed && showLoading) {
         _isHomeLoading = false;
@@ -434,47 +444,101 @@ class CatalogController extends ChangeNotifier {
   }
 
   Future<void> refreshPipeCatalog({bool showLoading = false}) async {
+    await _refreshCatalogFromServer(showPipeLoading: showLoading);
+  }
+
+  bool _hasCachedCatalog() {
+    return _pipesFittingCatalog != null ||
+        _electricalsCatalog != null ||
+        _apiVariants.isNotEmpty;
+  }
+
+  void _recordCatalogFetchFailure(Object error) {
+    if (!_hasCachedCatalog()) {
+      _error = error.toString();
+      if (_apiVariants.isEmpty && _categories.isEmpty) {
+        _useApi = false;
+      }
+      return;
+    }
+    // Keep showing the last good server catalog; do not flip to mock or error UI.
+    _useApi = true;
+  }
+
+  /// Single-flight catalog fetch used by Home, Pipes/Electricals, and polling.
+  Future<void> _refreshCatalogFromServer({required bool showPipeLoading}) async {
     if (_disposed) return;
-    if (showLoading) {
+    if (_catalogRefreshInFlight) {
+      _catalogRefreshQueued = true;
+      return;
+    }
+    _catalogRefreshInFlight = true;
+
+    if (showPipeLoading) {
       _isLoading = true;
       notifyListeners();
     }
 
     try {
-      final catalogFuture = _repository.fetchPipeCatalog();
       final categoriesFuture = _repository.fetchCategories();
-      final items = await catalogFuture;
-      if (_disposed) return;
-
+      List<Category> categories = _categories;
       try {
-        final cats = await categoriesFuture;
-        if (!_disposed && cats.isNotEmpty) {
-          _categories = cats;
+        categories = await categoriesFuture;
+        if (!_disposed && categories.isNotEmpty) {
+          _categories = categories;
         }
       } catch (_) {
         // Keep last good categories.
       }
 
-      final changed = await _applyCatalogItems(items);
+      final items = await _repository.fetchCatalogSkus(categories: categories);
+      if (_disposed) return;
 
-      if (_useApi) _error = null;
+      final changed = await _applyCatalogItems(items, categories: categories);
+
+      if (_hasCachedCatalog()) {
+        _error = null;
+      }
       if (changed || _categories.isNotEmpty) {
         notifyListeners();
       }
     } catch (e) {
       if (_disposed) return;
-      _error = e.toString();
-      if (_apiVariants.isEmpty) {
-        _useApi = false;
-        _pipesFittingCatalog = null;
+      if (await _tryApplyBundledCatalogFallback(e)) {
+        notifyListeners();
+      } else {
+        _recordCatalogFetchFailure(e);
+        notifyListeners();
       }
-      notifyListeners();
     } finally {
-      if (!_disposed && showLoading) {
+      _catalogRefreshInFlight = false;
+      if (!_disposed && showPipeLoading) {
         _isLoading = false;
         notifyListeners();
       }
+      if (_catalogRefreshQueued && !_disposed) {
+        _catalogRefreshQueued = false;
+        await _refreshCatalogFromServer(showPipeLoading: false);
+      }
     }
+  }
+
+  /// Demo catalog from bundled JSON when the API blocks mobile browse (HTTP 401).
+  Future<bool> _tryApplyBundledCatalogFallback(Object error) async {
+    if (_hasCachedCatalog()) return false;
+    final isBlocked = error is ApiException &&
+        (error.statusCode == 401 ||
+            error.message.contains('Unable to load catalog'));
+    if (!isBlocked) return false;
+
+    final trees = await CatalogFallbackLoader.loadBundledTrees();
+    if (trees == null) return false;
+
+    _pipesFittingCatalog = trees.pipes;
+    _electricalsCatalog = trees.electricals;
+    _useApi = false;
+    _error = null;
+    return true;
   }
 
   Future<Map<String, String>> _loadPipeMaterialImages() async {
@@ -492,34 +556,88 @@ class CatalogController extends ChangeNotifier {
   }
 
   /// Returns true when variants/tree changed.
-  Future<bool> _applyCatalogItems(List<ApiCatalogProduct> items) async {
-    final categoryId = _pipesCategoryId() ?? '';
+  Future<bool> _applyCatalogItems(
+    List<ApiCatalogProduct> items, {
+    List<Category> categories = const [],
+  }) async {
+    if (categories.isNotEmpty) {
+      _categories = categories;
+    }
+
+    final pipeItems = CatalogApiMapper.filterPipeItems(items);
+    final electricalItems = CatalogApiMapper.filterElectricalItems(items);
+
+    final pipesCategoryId = _pipesCategoryId() ?? '';
+    final electricalCategoryId = _electricalCategoryId() ?? '';
+
     final materialImages = await _loadPipeMaterialImages();
     final materialImagesChanged =
         !_materialImageMapsEqual(_pipeMaterialTypeImages, materialImages);
     _pipeMaterialTypeImages = materialImages;
 
-    final nextVariants =
-        CatalogApiMapper.toVariants(items, categoryId: categoryId);
-    final nextTree = CatalogApiMapper.toPipesFittingCatalog(
-      items,
+    var pipeVariants = CatalogApiMapper.toVariants(
+      pipeItems,
+      categoryId: pipesCategoryId,
+      alreadyFiltered: true,
+    );
+    var electricalVariants = CatalogApiMapper.toVariants(
+      electricalItems,
+      categoryId: electricalCategoryId,
+      alreadyFiltered: true,
+    );
+
+    var nextPipeTree = CatalogApiMapper.toPipesFittingCatalog(
+      pipeItems,
+      materialImagesByName: materialImages,
+      pipesOnly: false,
+    );
+    var nextElectricalTree = CatalogApiMapper.toElectricalsCatalog(
+      electricalItems,
       materialImagesByName: materialImages,
     );
+
+    if (nextPipeTree.types.isEmpty &&
+        (_pipesFittingCatalog?.types.isNotEmpty ?? false)) {
+      nextPipeTree = _pipesFittingCatalog!;
+      pipeVariants = _apiVariants
+          .where((v) => CatalogApiMapper.isPipesCategory(v.categoryName))
+          .toList();
+    }
+    if (nextElectricalTree.types.isEmpty &&
+        (_electricalsCatalog?.types.isNotEmpty ?? false)) {
+      nextElectricalTree = _electricalsCatalog!;
+      electricalVariants = _apiVariants
+          .where(
+            (v) => CatalogApiMapper.isElectricalCategory(v.categoryName),
+          )
+          .toList();
+    }
+
+    final nextVariants = [...pipeVariants, ...electricalVariants];
+
+    if (nextVariants.isEmpty && _apiVariants.isNotEmpty) {
+      return false;
+    }
+
     final nextToken = items.map((e) => e.syncFingerprint).join('|');
 
     if (nextToken == _apiSyncToken && _apiVariants.isNotEmpty) {
       if (materialImagesChanged) {
-        _pipesFittingCatalog = nextTree;
+        _pipesFittingCatalog = nextPipeTree;
+        _electricalsCatalog = nextElectricalTree;
         return true;
       }
       return false;
     }
 
+    final hadCatalogBeforeApply = _hasCachedCatalog();
+
     _apiSyncToken = nextToken;
     _apiVariants = nextVariants;
-    _pipesFittingCatalog = nextTree;
+    _pipesFittingCatalog = nextPipeTree;
+    _electricalsCatalog = nextElectricalTree;
     _useApi = nextVariants.isNotEmpty;
-    if (nextVariants.isEmpty) {
+    if (nextVariants.isEmpty && !hadCatalogBeforeApply) {
       _error = 'No products available from server';
     }
     return true;

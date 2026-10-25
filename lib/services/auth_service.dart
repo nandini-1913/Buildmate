@@ -17,7 +17,8 @@ class PhoneAuthService implements auth_contract.AuthService {
   String? _verificationId;
   int? _resendToken;
 
-  /// Attaches fresh Firebase ID tokens to every [ApiClient] request.
+  /// Attaches Firebase ID tokens to [ApiClient] for future protected APIs.
+  /// Catalog browse uses [PublicApiClient] and must not send Bearer headers.
   void attachApiClient() {
     ApiClient.authTokenProvider = ({bool forceRefresh = false}) async {
       final user = FirebaseAuth.instance.currentUser;

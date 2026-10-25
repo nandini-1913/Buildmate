@@ -116,6 +116,29 @@ void main() {
     expect(product.displayPrice, 486);
   });
 
+  test('filterElectricalItems keeps electrical category rows only', () {
+    const electrical = ApiCatalogProduct(
+      id: 'el-1',
+      name: 'LED Bulb',
+      category: 'Electricals',
+      unit: 'pcs',
+      standardRate: 120,
+      isActive: true,
+    );
+    const pipe = ApiCatalogProduct(
+      id: 'pipe-1',
+      name: 'UPVC Pipe',
+      category: 'PIPES & FITTING',
+      unit: 'pcs',
+      standardRate: 100,
+      isActive: true,
+    );
+
+    final filtered = CatalogApiMapper.filterElectricalItems([electrical, pipe]);
+    expect(filtered.length, 1);
+    expect(filtered.first.id, 'el-1');
+  });
+
   test('inactive API items are excluded', () {
     const item = ApiCatalogProduct(
       id: 'cat-2',

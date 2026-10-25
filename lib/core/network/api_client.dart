@@ -14,10 +14,12 @@ class ApiClient {
   /// Supplies a fresh Firebase ID token when the user is signed in.
   static Future<String?> Function({bool forceRefresh})? authTokenProvider;
 
+  /// When [authenticate] is false, no `Authorization` header is sent.
   Future<Map<String, dynamic>> getJson(
     String path, {
     Map<String, String>? queryParameters,
     Duration timeout = const Duration(seconds: 15),
+    bool authenticate = true,
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.apiPrefix}$path')
         .replace(queryParameters: queryParameters);
@@ -28,6 +30,7 @@ class ApiClient {
       final response = await _sendWithAuthRetry(
         uri: uri,
         timeout: timeout,
+        authenticate: authenticate,
       );
       if (kDebugMode) {
         print('API RESPONSE (${response.statusCode}): ${response.body}');
@@ -52,20 +55,52 @@ class ApiClient {
   Future<http.Response> _sendWithAuthRetry({
     required Uri uri,
     required Duration timeout,
-    bool retried401 = false,
+    bool authenticate = true,
+    bool forceRefreshToken = false,
+    bool triedWithoutAuth = false,
   }) async {
-    final response = await _client
-        .get(uri, headers: await _authHeaders())
-        .timeout(timeout);
+    final headers = authenticate
+        ? await _authHeaders(forceRefresh: forceRefreshToken)
+        : const <String, String>{};
+
+    final response = await _client.get(uri, headers: headers).timeout(timeout);
+
+    if (!authenticate) {
+      return response;
+    }
 
     if (response.statusCode == 401 &&
-        !retried401 &&
+        !forceRefreshToken &&
         authTokenProvider != null) {
-      return _client
-          .get(uri, headers: await _authHeaders(forceRefresh: true))
-          .timeout(timeout);
+      return _sendWithAuthRetry(
+        uri: uri,
+        timeout: timeout,
+        authenticate: true,
+        forceRefreshToken: true,
+        triedWithoutAuth: triedWithoutAuth,
+      );
     }
+
+    // Signed-in users send a Firebase ID token; public catalog routes treat
+    // Bearer tokens as admin JWTs and return 401 for customer Firebase tokens.
+    if (response.statusCode == 401 &&
+        !triedWithoutAuth &&
+        _looksLikeAdminTokenRejection(response)) {
+      return _sendWithAuthRetry(
+        uri: uri,
+        timeout: timeout,
+        authenticate: false,
+        triedWithoutAuth: true,
+      );
+    }
+
     return response;
+  }
+
+  bool _looksLikeAdminTokenRejection(http.Response response) {
+    final body = response.body.toLowerCase();
+    return body.contains('admin token') ||
+        (body.contains('invalid or expired') && body.contains('token'));
   }
 
   Map<String, dynamic> _decodeEnvelope(http.Response response) {

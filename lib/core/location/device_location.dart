@@ -114,20 +114,33 @@ class DeviceLocation {
             timeLimit: Duration(seconds: 20),
           );
 
+    Position? position;
     try {
-      return await Geolocator.getCurrentPosition(locationSettings: settings);
-    } on TimeoutException {
-      rethrow;
+      position = await Geolocator.getCurrentPosition(locationSettings: settings);
     } catch (_) {
-      if (defaultTargetPlatform != TargetPlatform.android) rethrow;
-      return Geolocator.getCurrentPosition(
-        locationSettings: AndroidSettings(
-          accuracy: LocationAccuracy.best,
-          forceLocationManager: true,
-          timeLimit: const Duration(seconds: 20),
-        ),
-      );
+      position = null;
     }
+
+    if (position == null && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        position = await Geolocator.getCurrentPosition(
+          locationSettings: AndroidSettings(
+            accuracy: LocationAccuracy.best,
+            forceLocationManager: true,
+            timeLimit: const Duration(seconds: 20),
+          ),
+        );
+      } catch (_) {
+        position = null;
+      }
+    }
+
+    position ??= await Geolocator.getLastKnownPosition();
+    if (position != null) return position;
+
+    throw const LocationException(
+      'Could not get a GPS fix. Try again outdoors or move the pin manually.',
+    );
   }
 
   ResolvedPlace _fromPlacemark(LatLng point, Placemark mark) {

@@ -10,6 +10,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/category_image.dart';
 import '../../domain/models/catalog_models.dart';
+import '../../domain/models/category_module_kind.dart';
 import '../../domain/models/pipes_fitting_catalog_models.dart';
 import '../../data/mappers/catalog_api_mapper.dart';
 import '../widgets/pdp_configurator_chips.dart';
@@ -24,7 +25,12 @@ import '../widgets/pipes_filter_panel.dart';
 /// place — no new page is opened. Data is loaded live from
 /// `GET /api/catalog` and polled for near-real-time updates.
 class PipesFittingCategoryScreen extends StatefulWidget {
-  const PipesFittingCategoryScreen({super.key});
+  const PipesFittingCategoryScreen({
+    super.key,
+    this.module = CategoryModuleKind.pipes,
+  });
+
+  final CategoryModuleKind module;
 
   @override
   State<PipesFittingCategoryScreen> createState() =>
@@ -701,6 +707,16 @@ class _PipesFittingCategoryScreenState
   OverlayEntry? _brandOverlay;
   OverlayEntry? _classOverlay;
 
+  PipesFittingCatalog? _activeCatalog(CatalogController catalog) =>
+      catalog.catalogFor(widget.module);
+
+  bool _isCatalogMissing(CatalogController catalog) =>
+      _activeCatalog(catalog) == null;
+
+  String get _screenTitle => widget.module == CategoryModuleKind.electricals
+      ? 'Electricals'
+      : 'Plumbing Pipes & Fittings';
+
   @override
   void initState() {
     super.initState();
@@ -709,7 +725,7 @@ class _PipesFittingCategoryScreenState
       final catalog = context.read<CatalogController>();
       catalog.startPipeCatalogSync();
       catalog.refreshPipeCatalog(
-        showLoading: catalog.pipesFittingCatalog == null,
+        showLoading: _isCatalogMissing(catalog),
       );
     });
   }
@@ -983,7 +999,7 @@ class _PipesFittingCategoryScreenState
       return;
     }
     _closeAllMenus();
-    final catalog = context.read<CatalogController>().pipesFittingCatalog;
+    final catalog = _activeCatalog(context.read<CatalogController>());
     _showDropdown(
       buttonKey: _sizeButtonKey,
       setOverlay: (entry) => _sizeOverlay = entry,
@@ -1011,7 +1027,7 @@ class _PipesFittingCategoryScreenState
       return;
     }
     _closeAllMenus();
-    final catalog = context.read<CatalogController>().pipesFittingCatalog;
+    final catalog = _activeCatalog(context.read<CatalogController>());
     final brandNames = catalog != null
         ? _brandNamesForFilter(catalog)
         : const <String>[];
@@ -1037,7 +1053,7 @@ class _PipesFittingCategoryScreenState
       return;
     }
     _closeAllMenus();
-    final catalog = context.read<CatalogController>().pipesFittingCatalog;
+    final catalog = _activeCatalog(context.read<CatalogController>());
     _showDropdown(
       buttonKey: _classButtonKey,
       setOverlay: (entry) => _classOverlay = entry,
@@ -1080,6 +1096,7 @@ class _PipesFittingCategoryScreenState
     return Column(
       children: [
         _CategoryHeader(
+          screenTitle: _screenTitle,
           sort: _sort,
           selectedSize: _size,
           selectedBrand: _selectedBrand,
@@ -1104,7 +1121,7 @@ class _PipesFittingCategoryScreenState
 
   Widget _buildCatalogContent(BuildContext context) {
     final catalogCtrl = context.watch<CatalogController>();
-    final catalog = catalogCtrl.pipesFittingCatalog;
+    final catalog = _activeCatalog(catalogCtrl);
 
     if (catalogCtrl.isLoading && catalog == null) {
       return const Center(
@@ -1233,6 +1250,7 @@ class _PipesFittingCategoryScreenState
                                   group: group,
                                   catalogSectionGroups: sectionGroups,
                                   pipeType: _selectedType,
+                                  catalogModule: widget.module,
                                 );
                               },
                             ),
@@ -1260,6 +1278,7 @@ class _PipesFittingCategoryScreenState
 
 class _CategoryHeader extends StatelessWidget {
   const _CategoryHeader({
+    required this.screenTitle,
     required this.sort,
     required this.selectedSize,
     required this.selectedBrand,
@@ -1276,6 +1295,7 @@ class _CategoryHeader extends StatelessWidget {
     required this.onClassTap,
   });
 
+  final String screenTitle;
   final PipeModuleSort sort;
   final String? selectedSize;
   final String? selectedBrand;
@@ -1319,7 +1339,7 @@ class _CategoryHeader extends StatelessWidget {
                   const SizedBox(width: AppSpacing.space3),
                   Expanded(
                     child: Text(
-                      'Plumbing Pipes & Fittings',
+                      screenTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleMedium?.copyWith(
@@ -2261,11 +2281,13 @@ class _CategoryProductCard extends StatelessWidget {
     required this.group,
     required this.catalogSectionGroups,
     required this.pipeType,
+    required this.catalogModule,
   });
 
   final _CategoryProductGroup group;
   final List<_CategoryProductGroup> catalogSectionGroups;
   final String? pipeType;
+  final CategoryModuleKind catalogModule;
 
   void _openConfigurator(BuildContext context) {
     if (group.products.isEmpty) return;
@@ -2285,6 +2307,7 @@ class _CategoryProductCard extends StatelessWidget {
           subCategory: group.subCategory,
           initialGroup: initialGroup,
           initialProduct: initialProduct,
+          catalogModule: catalogModule,
         ),
       ),
     );
@@ -2327,7 +2350,9 @@ class _CategoryProductCard extends StatelessWidget {
                       child: CategoryImage(
                         imageAsset: '',
                         imageUrl: _representativeImageUrl(group.products),
-                        fallbackIcon: 'plumbing',
+                        fallbackIcon: catalogModule == CategoryModuleKind.electricals
+                            ? 'electrical_services'
+                            : 'plumbing',
                         fallbackIconColor: AppColors.outline,
                         fallbackBackground: AppColors.surfaceContainer,
                         fit: BoxFit.contain,
@@ -2456,6 +2481,7 @@ class _PipeConfiguratorScreen extends StatefulWidget {
     required this.subCategory,
     required this.initialGroup,
     required this.initialProduct,
+    required this.catalogModule,
   });
 
   final List<_CategoryProductGroup> groups;
@@ -2464,6 +2490,7 @@ class _PipeConfiguratorScreen extends StatefulWidget {
   final String subCategory;
   final _CategoryProductGroup initialGroup;
   final PipesFittingProduct initialProduct;
+  final CategoryModuleKind catalogModule;
 
   @override
   State<_PipeConfiguratorScreen> createState() =>
@@ -2486,7 +2513,9 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
   }
 
   List<_CategoryProductGroup> _catalogPool(BuildContext context) {
-    final catalog = context.read<CatalogController>().pipesFittingCatalog;
+    final catalog = context
+        .read<CatalogController>()
+        .catalogFor(widget.catalogModule);
     if (catalog != null) {
       final typeName =
           widget.pipeType ?? resolvePipeTypeForProduct(catalog, _product);
@@ -2536,7 +2565,9 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
     BuildContext context,
     Set<String> sizes,
   ) {
-    final catalog = context.read<CatalogController>().pipesFittingCatalog;
+    final catalog = context
+        .read<CatalogController>()
+        .catalogFor(widget.catalogModule);
     if (catalog == null) return;
     final typeName = _resolvedPipeType(context);
     final familyKey = _productFamilyKey(
@@ -2607,7 +2638,9 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
     if (widget.pipeType != null && widget.pipeType!.trim().isNotEmpty) {
       return widget.pipeType;
     }
-    final catalog = context.read<CatalogController>().pipesFittingCatalog;
+    final catalog = context
+        .read<CatalogController>()
+        .catalogFor(widget.catalogModule);
     if (catalog != null) {
       return resolvePipeTypeForProduct(catalog, _product);
     }
@@ -2804,7 +2837,9 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
       }
     }
 
-    final catalog = context.read<CatalogController>().pipesFittingCatalog;
+    final catalog = context
+        .read<CatalogController>()
+        .catalogFor(widget.catalogModule);
     if (best == null && catalog != null) {
       final dummyGroup = _group;
       for (final product in _catalogProductsForSection(
@@ -2872,7 +2907,9 @@ class _PipeConfiguratorScreenState extends State<_PipeConfiguratorScreen> {
   }
 
   void _reconcileWithLiveCatalog(BuildContext context) {
-    final catalog = context.read<CatalogController>().pipesFittingCatalog;
+    final catalog = context
+        .read<CatalogController>()
+        .catalogFor(widget.catalogModule);
     if (catalog == null) return;
 
     final productId = _product.id?.trim();

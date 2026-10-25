@@ -4,8 +4,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
 
 import '../../../../core/location/device_location.dart';
+import '../../../../core/state/location_controller.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -38,6 +40,8 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
 
   bool _locating = false;
   bool _located = false;
+  bool _mapReady = false;
+  LatLng? _pendingMapCenter;
   ResolvedPlace? _place;
   int _resolveToken = 0;
   late final AnimationController _pinController;
@@ -51,15 +55,61 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
       duration: const Duration(milliseconds: 900),
     );
     _mapController = MapController();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _useCurrentLocation();
-    });
   }
 
   @override
   void dispose() {
     _pinController.dispose();
+    _mapController.dispose();
     super.dispose();
+  }
+
+  void _onMapReady() {
+    _mapReady = true;
+    final pending = _pendingMapCenter;
+    if (pending != null) {
+      _pendingMapCenter = null;
+      _moveMap(pending);
+    }
+    if (_located) return;
+    unawaited(_bootstrapLocation());
+  }
+
+  Future<void> _bootstrapLocation() async {
+    final shared = context.read<LocationController>();
+    if (shared.hasFix) {
+      _applySharedLocation(shared);
+      return;
+    }
+
+    if (shared.isLoading) {
+      for (var attempt = 0; attempt < 40; attempt++) {
+        if (!mounted) return;
+        if (!shared.isLoading) break;
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      if (!mounted) return;
+      if (shared.hasFix) {
+        _applySharedLocation(shared);
+        return;
+      }
+    }
+
+    await _useCurrentLocation();
+  }
+
+  void _applySharedLocation(LocationController shared) {
+    final point = shared.currentCenter;
+    _moveMap(point);
+    setState(() {
+      _located = true;
+      _locating = false;
+      _place = ResolvedPlace(
+        point: point,
+        line1: shared.addressLine1,
+        line2: shared.addressLine2,
+      );
+    });
   }
 
   Future<void> _useCurrentLocation() async {
@@ -107,6 +157,12 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
       _locating = false;
       _located = true;
     });
+    if (!mounted) return;
+    context.read<LocationController>().updateLocation(
+      place.point,
+      place.line1,
+      place.line2,
+    );
   }
 
   void _stopLocating() {
@@ -118,9 +174,15 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
   }
 
   void _moveMap(LatLng point) {
+    if (!_mapReady) {
+      _pendingMapCenter = point;
+      return;
+    }
     try {
       _mapController.move(point, 16);
-    } catch (_) {}
+    } catch (_) {
+      _pendingMapCenter = point;
+    }
   }
 
   void _showLocationError(LocationException error) {
@@ -175,6 +237,7 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen>
                   options: MapOptions(
                     initialCenter: _defaultCenter,
                     initialZoom: 15,
+                    onMapReady: _onMapReady,
                     interactionOptions: const InteractionOptions(
                       flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                     ),

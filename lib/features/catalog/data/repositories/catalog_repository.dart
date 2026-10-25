@@ -50,56 +50,102 @@ class CatalogRepository {
         .toList();
   }
 
-  /// Fetches active pipe catalog items from the live backend.
-  Future<List<ApiCatalogProduct>> fetchPipeCatalog() async {
-    Map<String, dynamic>? envelope;
+  /// Raw SKU rows from `GET /api/catalog`.
+  ///
+  /// Loads the unfiltered catalog first so pipes, electricals, and all material
+  /// types share one payload. If that is empty, merges every known category
+  /// query (deduped by SKU id) instead of stopping at the first pipes hit.
+  Future<List<ApiCatalogProduct>> fetchCatalogSkus({
+    List<Category> categories = const [],
+  }) async {
     Object? lastError;
 
-    // Prefer filtered catalog for PIPES & FITTING.
     try {
-      envelope = await _apiClient.getJson(
-        '/catalog',
-        queryParameters: {
-          'category': CatalogApiMapper.pipesCategoryQuery,
-        },
-      );
+      final full = await _fetchCatalogRows();
+      if (full.isNotEmpty) return _dedupeCatalogById(full);
     } catch (e) {
       lastError = e;
       if (kDebugMode) {
-        print('Catalog filtered fetch failed: $e');
+        print('Catalog full fetch failed: $e');
       }
     }
 
-    // Fallback: full catalog, then filter client-side.
-    if (envelope == null) {
+    final queries = CatalogApiMapper.catalogQueryCandidates(categories);
+    final merged = <String, ApiCatalogProduct>{};
+
+    for (final category in queries) {
       try {
-        envelope = await _apiClient.getJson('/catalog');
+        final items = await _fetchCatalogRows(categoryQuery: category);
+        for (final item in items) {
+          if (item.id.isEmpty) continue;
+          merged[item.id] = item;
+        }
       } catch (e) {
         lastError = e;
         if (kDebugMode) {
-          print('Catalog full fetch failed: $e');
+          print('Catalog fetch failed for category="$category": $e');
         }
-        throw ApiException(
-          'Unable to load catalog from server',
-          statusCode: e is ApiException ? e.statusCode : null,
-          body: e.toString(),
-        );
       }
     }
 
-    final data = envelope['data'] ?? envelope['items'] ?? envelope;
-    if (data is! List) {
+    if (merged.isNotEmpty) return merged.values.toList();
+
+    if (lastError != null) {
       throw ApiException(
-        lastError?.toString() ?? 'Catalog response was empty',
+        'Unable to load catalog from server',
+        statusCode: lastError is ApiException ? lastError.statusCode : null,
+        body: lastError.toString(),
       );
     }
 
-    final items = data
+    throw ApiException('Catalog response was empty');
+  }
+
+  static List<ApiCatalogProduct> _dedupeCatalogById(
+    List<ApiCatalogProduct> items,
+  ) {
+    final byId = <String, ApiCatalogProduct>{};
+    for (final item in items) {
+      if (item.id.isEmpty) continue;
+      byId[item.id] = item;
+    }
+    return byId.values.toList();
+  }
+
+  /// Fetches active pipe catalog items from the live backend.
+  Future<List<ApiCatalogProduct>> fetchPipeCatalog({
+    List<Category> categories = const [],
+  }) async {
+    final items = await fetchCatalogSkus(categories: categories);
+    return CatalogApiMapper.filterPipeItems(items);
+  }
+
+  /// Fetches active electrical catalog items from the live backend.
+  Future<List<ApiCatalogProduct>> fetchElectricalCatalog({
+    List<Category> categories = const [],
+  }) async {
+    final items = await fetchCatalogSkus(categories: categories);
+    return CatalogApiMapper.filterElectricalItems(items);
+  }
+
+  Future<List<ApiCatalogProduct>> _fetchCatalogRows({
+    String? categoryQuery,
+  }) async {
+    final envelope = await _apiClient.getJson(
+      '/catalog',
+      queryParameters: {
+        if (categoryQuery != null && categoryQuery.isNotEmpty)
+          'category': categoryQuery,
+      },
+    );
+
+    final data = envelope['data'] ?? envelope['items'] ?? envelope;
+    if (data is! List) return const [];
+
+    return data
         .whereType<Map<String, dynamic>>()
         .map(ApiCatalogProduct.fromJson)
         .toList();
-
-    return CatalogApiMapper.filterPipeItems(items);
   }
 
   /// Sidebar **Type** images (UPVC, CPVC, PVC) from `GET /api/catalog/tree`.

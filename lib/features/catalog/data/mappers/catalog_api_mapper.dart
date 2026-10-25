@@ -14,6 +14,10 @@ abstract final class CatalogApiMapper {
   /// Query value accepted by `GET /api/catalog?category=...`.
   static const String pipesCategoryQuery = 'PIPES & FITTING';
 
+  static const String electricalCategoryName = 'ELECTRICALS';
+
+  static const String electricalCategoryQuery = 'Electricals';
+
   static bool isPipesCategory(String category) {
     final normalized = category
         .toLowerCase()
@@ -22,6 +26,45 @@ abstract final class CatalogApiMapper {
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     return normalized.contains('pipe');
+  }
+
+  static bool isElectricalCategory(String category) {
+    final normalized = category
+        .toLowerCase()
+        .replaceAll('&', 'and')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return normalized.contains('electr');
+  }
+
+  /// Category query strings to try before falling back to unfiltered `GET /catalog`.
+  static List<String> catalogQueryCandidates(List<Category> categories) {
+    final seen = <String>{};
+    final queries = <String>[];
+
+    void add(String? value) {
+      final trimmed = value?.trim() ?? '';
+      if (trimmed.isEmpty) return;
+      final key = trimmed.toLowerCase();
+      if (!seen.add(key)) return;
+      queries.add(trimmed);
+    }
+
+    for (final category in categories) {
+      final name = category.name;
+      if (isPipesCategory(name) || isElectricalCategory(name)) {
+        add(name);
+      }
+    }
+
+    add(pipesCategoryQuery);
+    add('Pipes & Fittings');
+    add('Plumbing Pipes & Fittings');
+    add(electricalCategoryQuery);
+    add(electricalCategoryName);
+    add('Electrical');
+    return queries;
   }
 
   /// Maps `GET /api/categories` row → domain [Category].
@@ -73,6 +116,15 @@ abstract final class CatalogApiMapper {
         .toList();
   }
 
+  static List<ApiCatalogProduct> filterElectricalItems(
+    List<ApiCatalogProduct> items,
+  ) {
+    return items
+        .where((item) => item.isActive && item.id.isNotEmpty)
+        .where((item) => isElectricalCategory(item.category))
+        .toList();
+  }
+
   /// Whether a catalog row can be ordered from its [stock] field.
   ///
   /// The dashboard API often sends `stock: 0` when inventory is not maintained.
@@ -91,8 +143,10 @@ abstract final class CatalogApiMapper {
   static List<ProductVariant> toVariants(
     List<ApiCatalogProduct> items, {
     String categoryId = '',
+    bool alreadyFiltered = false,
   }) {
-    return filterPipeItems(items)
+    final list = alreadyFiltered ? items : filterPipeItems(items);
+    return list
         .map((item) => _toVariant(item, categoryId: categoryId))
         .toList();
   }
@@ -193,8 +247,10 @@ abstract final class CatalogApiMapper {
   static PipesFittingCatalog toPipesFittingCatalog(
     List<ApiCatalogProduct> items, {
     Map<String, String> materialImagesByName = const {},
+    String categoryLabel = pipesCategoryName,
+    bool pipesOnly = true,
   }) {
-    final pipeItems = filterPipeItems(items);
+    final pipeItems = pipesOnly ? filterPipeItems(items) : items;
 
     // type -> subcategory -> class -> products
     final nested = <String, Map<String, Map<String, List<PipesFittingProduct>>>>{};
@@ -262,8 +318,20 @@ abstract final class CatalogApiMapper {
     }).toList();
 
     return PipesFittingCatalog(
-      category: pipesCategoryName,
+      category: categoryLabel,
       types: types,
+    );
+  }
+
+  static PipesFittingCatalog toElectricalsCatalog(
+    List<ApiCatalogProduct> items, {
+    Map<String, String> materialImagesByName = const {},
+  }) {
+    return toPipesFittingCatalog(
+      filterElectricalItems(items),
+      materialImagesByName: materialImagesByName,
+      categoryLabel: electricalCategoryName,
+      pipesOnly: false,
     );
   }
 
